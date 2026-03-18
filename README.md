@@ -26,7 +26,7 @@ Add to `.mcp.json`:
   "mcpServers": {
     "research-md": {
       "command": "npx",
-      "args": ["research-md", "start"]
+      "args": ["research-md", "mcp", "start"]
     }
   }
 }
