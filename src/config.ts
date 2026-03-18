@@ -1,17 +1,18 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 
 // ── Config types ─────────────────────────────────────────────────────────────
 
-/** Config for a single research project (subproject or standalone). */
 export interface ProjectConfig {
+  id: string;
   version: string;
   projectName: string;
   created: string;
 }
 
-/** Config for a root that contains multiple subprojects. */
 export interface RootConfig {
+  id: string;
   version: string;
   projects: string[];
   created: string;
@@ -29,40 +30,58 @@ function isProjectConfig(config: ResearchConfig): config is ProjectConfig {
   return "projectName" in config;
 }
 
-// ── Resolution ───────────────────────────────────────────────────────────────
+// ── In-memory GUID → path registry ───────────────────────────────────────────
+// Each MCP server process maintains its own map. No disk state. No singletons.
+// The AI registers a project via project_set, then uses the GUID on every call.
 
-export interface ResolvedProject {
-  /** Absolute path to this project's directory (where findings/, candidates/, etc. live). */
-  projectRoot: string;
-  /** The project config. */
-  config: ProjectConfig;
-  /** If this project lives under a root, the root path. Null for standalone. */
-  rootPath: string | null;
-}
+const guidToPath: Map<string, string> = new Map();
 
 /**
- * Find the nearest research-md.json walking up from cwd.
- * Returns the directory containing it, or null.
+ * Register a project path by its GUID. Called by project_set.
  */
-export function findConfigDir(): string | null {
-  const start = process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
-  let dir = start;
-
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.join(dir, CONFIG_FILENAME))) {
-      return dir;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+export function registerProject(projectPath: string): { id: string; projectName: string; isRoot: boolean; projects: string[] } {
+  const absPath = path.resolve(projectPath);
+  const config = loadConfig(absPath);
+  if (!config) {
+    throw new Error(`No research-md.json at ${absPath}. Run 'research-md init' there first.`);
+  }
+  if (!config.id) {
+    throw new Error(`research-md.json at ${absPath} has no 'id' field. Re-run 'research-md init' to generate one.`);
   }
 
-  return null;
+  guidToPath.set(config.id, absPath);
+
+  // Also register subprojects if this is a root
+  if (isRootConfig(config)) {
+    for (const sub of config.projects) {
+      const subDir = path.join(absPath, sub);
+      const subConfig = loadConfig(subDir);
+      if (subConfig?.id) {
+        guidToPath.set(subConfig.id, subDir);
+      }
+    }
+    return { id: config.id, projectName: "(root)", isRoot: true, projects: config.projects };
+  }
+
+  return { id: config.id, projectName: (config as ProjectConfig).projectName, isRoot: false, projects: [] };
 }
 
 /**
- * Load a config file from a directory.
+ * Look up a path by GUID. Returns null if not registered.
  */
+export function lookupGuid(guid: string): string | null {
+  return guidToPath.get(guid) || null;
+}
+
+/**
+ * List all registered GUIDs and their paths.
+ */
+export function listRegistered(): Array<{ id: string; path: string }> {
+  return Array.from(guidToPath.entries()).map(([id, p]) => ({ id, path: p }));
+}
+
+// ── Config loading ───────────────────────────────────────────────────────────
+
 export function loadConfig(dir: string): ResearchConfig | null {
   const configPath = path.join(dir, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return null;
@@ -73,65 +92,43 @@ export function loadConfig(dir: string): ResearchConfig | null {
   }
 }
 
-/**
- * List all subprojects from a root config.
- */
 export function listProjects(rootDir: string): string[] {
   const config = loadConfig(rootDir);
   if (!config || !isRootConfig(config)) return [];
   return config.projects;
 }
 
-/**
- * Resolve which project we're operating on.
- *
- * Resolution order:
- * 1. If `projectName` is provided, look for it as a subproject under the root.
- * 2. If cwd is inside a subproject directory, use that.
- * 3. If the config is a standalone project config, use it directly.
- * 4. If the config is a root with projects, return null (must specify).
- */
-export function resolveProject(projectName?: string): ResolvedProject | null {
-  const configDir = findConfigDir();
-  if (!configDir) return null;
+// ── Resolution (explicit path, no detection) ─────────────────────────────────
 
-  const config = loadConfig(configDir);
+export interface ResolvedProject {
+  projectRoot: string;
+  config: ProjectConfig;
+  rootPath: string | null;
+}
+
+/**
+ * Resolve a project from its GUID.
+ * The GUID must have been registered via registerProject first.
+ */
+export function resolveByGuid(guid: string): ResolvedProject | null {
+  const projectPath = lookupGuid(guid);
+  if (!projectPath || !fs.existsSync(projectPath)) return null;
+
+  const config = loadConfig(projectPath);
   if (!config) return null;
 
-  // Standalone project — no subprojects
-  if (isProjectConfig(config)) {
-    return {
-      projectRoot: configDir,
-      config,
-      rootPath: null,
-    };
+  // Direct hit on a standalone project or subproject
+  if (isProjectConfig(config) && config.id === guid) {
+    // Check if this is under a root
+    const parentDir = path.dirname(projectPath);
+    const parentConfig = loadConfig(parentDir);
+    const rootPath = parentConfig && isRootConfig(parentConfig) ? parentDir : null;
+    return { projectRoot: projectPath, config, rootPath };
   }
 
-  // Root config with subprojects
-  if (isRootConfig(config)) {
-    // Explicit project name requested
-    if (projectName) {
-      if (!config.projects.includes(projectName)) return null;
-      const subDir = path.join(configDir, projectName);
-      const subConfig = loadConfig(subDir);
-      if (!subConfig || !isProjectConfig(subConfig)) return null;
-      return { projectRoot: subDir, config: subConfig, rootPath: configDir };
-    }
-
-    // Try to infer from cwd — are we inside a subproject?
-    const cwd = process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
-    for (const proj of config.projects) {
-      const subDir = path.resolve(configDir, proj);
-      if (cwd.startsWith(subDir)) {
-        const subConfig = loadConfig(subDir);
-        if (subConfig && isProjectConfig(subConfig)) {
-          return { projectRoot: subDir, config: subConfig, rootPath: configDir };
-        }
-      }
-    }
-
-    // Can't infer — return null (caller should ask which project)
-    return null;
+  // Direct hit on a root — can't operate on root directly, need a subproject
+  if (isRootConfig(config) && config.id === guid) {
+    return null; // Caller should use a subproject GUID instead
   }
 
   return null;
@@ -146,9 +143,6 @@ export function saveConfig(dir: string, config: ResearchConfig): void {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-/**
- * Initialize a standalone research project.
- */
 export function initProject(targetDir: string, projectName?: string): void {
   const dirs = ["findings", "candidates", "evaluations"];
 
@@ -160,6 +154,7 @@ export function initProject(targetDir: string, projectName?: string): void {
   }
 
   const config: ProjectConfig = {
+    id: crypto.randomUUID(),
     version: "0.1.0",
     projectName: projectName || path.basename(targetDir),
     created: new Date().toISOString().split("T")[0],
@@ -168,15 +163,10 @@ export function initProject(targetDir: string, projectName?: string): void {
   saveConfig(targetDir, config);
 }
 
-/**
- * Initialize a subproject under an existing root.
- * Creates the subproject dir + config, and registers it in the root config.
- */
 export function initSubproject(rootDir: string, projectName: string): void {
   const subDir = path.join(rootDir, projectName);
   initProject(subDir, projectName);
 
-  // Update root config
   const rootConfig = loadConfig(rootDir);
   if (rootConfig && isRootConfig(rootConfig)) {
     if (!rootConfig.projects.includes(projectName)) {
@@ -186,30 +176,17 @@ export function initSubproject(rootDir: string, projectName: string): void {
   }
 }
 
-/**
- * Initialize a root (multi-project container).
- * Does NOT create subproject folders — use initSubproject for each.
- */
 export function initRoot(targetDir: string, projects?: string[]): void {
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
 
   const config: RootConfig = {
+    id: crypto.randomUUID(),
     version: "0.1.0",
     projects: projects || [],
     created: new Date().toISOString().split("T")[0],
   };
 
   saveConfig(targetDir, config);
-}
-
-// ── Compat shim ──────────────────────────────────────────────────────────────
-
-/**
- * Find the project root (legacy compat — returns resolved project root or null).
- */
-export function findProjectRoot(): string | null {
-  const resolved = resolveProject();
-  return resolved?.projectRoot ?? null;
 }

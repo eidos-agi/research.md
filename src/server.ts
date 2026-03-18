@@ -10,18 +10,19 @@ import * as fs from "fs";
 import * as path from "path";
 
 import {
-  resolveProject,
-  findConfigDir,
+  resolveByGuid,
   loadConfig,
   listProjects,
   initProject,
   initSubproject,
   initRoot,
+  registerProject,
+  lookupGuid,
+  listRegistered,
   ResolvedProject,
 } from "./config";
 import { sanitizeSlug } from "./security";
 import {
-  ResearchNotInitializedError,
   ResearchNotFoundError,
   ResearchGateError,
   ResearchValidationError,
@@ -57,71 +58,98 @@ function today(): string {
 }
 
 /**
- * Resolve which project to operate on. If the root is multi-project,
- * requires either a project parameter or cwd inference.
+ * Resolve a project from its research_id (GUID).
+ * If the GUID is missing or unknown, fails with a helpful error telling the AI how to get it.
  */
-function getProject(projectName?: string): ResolvedProject {
-  const resolved = resolveProject(projectName);
-  if (!resolved) {
-    // Check if we found a root but couldn't pick a project
-    const configDir = findConfigDir();
-    if (configDir) {
-      const projects = listProjects(configDir);
-      if (projects.length > 0) {
-        throw new ResearchValidationError(
-          `Multiple projects available: ${projects.join(", ")}. Specify one with the 'project' parameter.`
-        );
-      }
-    }
-    throw new ResearchNotInitializedError();
+function getProject(researchId: unknown): ResolvedProject {
+  if (!researchId || typeof researchId !== "string") {
+    throw new ResearchValidationError(
+      "Missing required parameter: research_id. " +
+      "Read the project's research-md.json file to find the 'id' field (a UUID). " +
+      "If the project hasn't been registered this session, call `project_set` with its path first."
+    );
   }
+
+  // Check if registered
+  const projectPath = lookupGuid(researchId);
+  if (!projectPath) {
+    throw new ResearchValidationError(
+      `Unknown research_id '${researchId}'. This project hasn't been registered in this session. ` +
+      "Call `project_set` with the project's path to register it. " +
+      "The research_id is the 'id' field in the project's research-md.json."
+    );
+  }
+
+  const resolved = resolveByGuid(researchId);
+  if (!resolved) {
+    // Check if this is a root GUID
+    const config = loadConfig(projectPath);
+    if (config && "projects" in config) {
+      const projects = (config as any).projects as string[];
+      throw new ResearchValidationError(
+        `research_id '${researchId}' points to a multi-project root, not a specific project. ` +
+        `Use the research_id of one of its subprojects: ${projects.join(", ")}. ` +
+        "Read each subproject's research-md.json to find its id."
+      );
+    }
+    throw new ResearchNotFoundError("Project", researchId);
+  }
+
   return resolved;
 }
 
-function isInitialized(): boolean {
-  return findConfigDir() !== null;
-}
-
-// Optional project parameter added to every data tool
-const PROJECT_PARAM = {
-  project: { type: "string", description: "Subproject name (required if multi-project root)" },
+// research_id parameter — required on every data tool
+const RID = {
+  research_id: { type: "string", description: "Project GUID from research-md.json 'id' field. Required." },
 } as const;
 
 export function createServer(): Server {
   const server = new Server(
     { name: "research-md", version: "0.1.0" },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-      },
-    }
+    { capabilities: { tools: {}, resources: {} } }
   );
-
-  // ── Tool definitions ───────────────────────────────────────────────────────
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
-        name: "init",
-        description: "Initialize a research project. Use 'root: true' for multi-project container, or 'subproject' to add under an existing root.",
+        name: "project_set",
+        description: "Register a research project for this session. Call this first — reads the research-md.json at the given path and registers its GUID. Also registers all subprojects if it's a root.",
         inputSchema: {
           type: "object",
+          required: ["path"],
           properties: {
-            path: { type: "string", description: "Directory to initialize (defaults to cwd)" },
+            path: { type: "string", description: "Absolute path to the research project or multi-project root" },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "project_get",
+        description: "Show all registered research projects in this session.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      },
+      {
+        name: "init",
+        description: "Initialize a new research project with folder structure and GUID.",
+        inputSchema: {
+          type: "object",
+          required: ["path"],
+          properties: {
+            path: { type: "string", description: "Directory to initialize" },
             name: { type: "string", description: "Project name" },
-            root: { type: "boolean", description: "If true, create a multi-project root instead of a single project" },
-            subproject: { type: "string", description: "Create a subproject under the current root with this name" },
+            root: { type: "boolean", description: "Create a multi-project root" },
+            subproject: { type: "string", description: "Create a subproject under this root" },
           },
           additionalProperties: false,
         },
       },
       {
         name: "status",
-        description: "Show project health. At a root, shows all subprojects. In a subproject, shows that project's detail.",
+        description: "Show project health: criteria locked, peer review, TBD count, findings, candidates.",
         inputSchema: {
           type: "object",
-          properties: { ...PROJECT_PARAM },
+          required: ["research_id"],
+          properties: { ...RID },
           additionalProperties: false,
         },
       },
@@ -130,13 +158,13 @@ export function createServer(): Server {
         description: "Create a new finding with evidence grade and source.",
         inputSchema: {
           type: "object",
-          required: ["title", "claim"],
+          required: ["research_id", "title", "claim"],
           properties: {
+            ...RID,
             title: { type: "string", minLength: 1 },
             claim: { type: "string", minLength: 1 },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             source: { type: "string" },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -146,7 +174,8 @@ export function createServer(): Server {
         description: "List all findings with status and evidence grade.",
         inputSchema: {
           type: "object",
-          properties: { ...PROJECT_PARAM },
+          required: ["research_id"],
+          properties: { ...RID },
           additionalProperties: false,
         },
       },
@@ -155,13 +184,13 @@ export function createServer(): Server {
         description: "Update a finding's status, evidence grade, or claim.",
         inputSchema: {
           type: "object",
-          required: ["id"],
+          required: ["research_id", "id"],
           properties: {
+            ...RID,
             id: { type: "string", minLength: 1 },
             status: { type: "string", enum: ["open", "confirmed", "refuted", "superseded"] },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             claim: { type: "string" },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -171,12 +200,12 @@ export function createServer(): Server {
         description: "Create a new candidate for evaluation.",
         inputSchema: {
           type: "object",
-          required: ["title"],
+          required: ["research_id", "title"],
           properties: {
+            ...RID,
             title: { type: "string", minLength: 1 },
             slug: { type: "string" },
             description: { type: "string" },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -186,7 +215,8 @@ export function createServer(): Server {
         description: "List all candidates with verdict status.",
         inputSchema: {
           type: "object",
-          properties: { ...PROJECT_PARAM },
+          required: ["research_id"],
+          properties: { ...RID },
           additionalProperties: false,
         },
       },
@@ -195,11 +225,11 @@ export function createServer(): Server {
         description: "Add a binary testable claim to a candidate's validation checklist.",
         inputSchema: {
           type: "object",
-          required: ["slug", "claim"],
+          required: ["research_id", "slug", "claim"],
           properties: {
+            ...RID,
             slug: { type: "string", minLength: 1 },
             claim: { type: "string", minLength: 1 },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -209,12 +239,12 @@ export function createServer(): Server {
         description: "Mark a validation claim Y or N (clears _TBD_).",
         inputSchema: {
           type: "object",
-          required: ["slug", "claim_index", "result"],
+          required: ["research_id", "slug", "claim_index", "result"],
           properties: {
+            ...RID,
             slug: { type: "string", minLength: 1 },
             claim_index: { type: "number", minimum: 1 },
             result: { type: "string", enum: ["Y", "N"] },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -224,7 +254,8 @@ export function createServer(): Server {
         description: "Lock decision criteria, preventing further weight changes.",
         inputSchema: {
           type: "object",
-          properties: { ...PROJECT_PARAM },
+          required: ["research_id"],
+          properties: { ...RID },
           additionalProperties: false,
         },
       },
@@ -233,12 +264,12 @@ export function createServer(): Server {
         description: "Score a candidate. Fails if criteria not locked, peer review missing, or _TBD_ items remain.",
         inputSchema: {
           type: "object",
-          required: ["slug", "scores"],
+          required: ["research_id", "slug", "scores"],
           properties: {
+            ...RID,
             slug: { type: "string", minLength: 1 },
             scores: { type: "object", additionalProperties: { type: "number", minimum: 0, maximum: 10 } },
             notes: { type: "string" },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -248,7 +279,8 @@ export function createServer(): Server {
         description: "Generate evaluations/scoring-matrix.md from locked criteria and candidates.",
         inputSchema: {
           type: "object",
-          properties: { ...PROJECT_PARAM },
+          required: ["research_id"],
+          properties: { ...RID },
           additionalProperties: false,
         },
       },
@@ -257,12 +289,12 @@ export function createServer(): Server {
         description: "Log a peer review. Required before scoring.",
         inputSchema: {
           type: "object",
-          required: ["reviewer", "findings"],
+          required: ["research_id", "reviewer", "findings"],
           properties: {
+            ...RID,
             reviewer: { type: "string", minLength: 1 },
             findings: { type: "array", items: { type: "string" }, minItems: 1 },
             notes: { type: "string" },
-            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -274,72 +306,58 @@ export function createServer(): Server {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    const projectArg = args?.project as string | undefined;
 
     try {
       switch (name) {
-        case "init": {
-          const targetPath = (args?.path as string) || process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
+        case "project_set": {
+          const projectPath = args?.path as string;
+          if (!projectPath) throw new ResearchValidationError("'path' is required.");
+          const info = registerProject(projectPath);
 
-          // Init a multi-project root
+          const lines = [`Registered: ${projectPath}`, `ID: ${info.id}`, `Name: ${info.projectName}`];
+          if (info.isRoot) {
+            lines.push(`\nThis is a multi-project root with ${info.projects.length} subproject(s).`);
+            lines.push("Subprojects also registered. Read each subproject's research-md.json for its research_id.");
+            lines.push(`\nSubprojects: ${info.projects.join(", ")}`);
+          }
+          lines.push("\nUse the 'id' field as research_id on all subsequent tool calls.");
+
+          return { content: [{ type: "text", text: lines.join("\n") }] };
+        }
+
+        case "project_get": {
+          const registered = listRegistered();
+          if (registered.length === 0) {
+            return { content: [{ type: "text", text: "No projects registered this session. Use `project_set` with a project path." }] };
+          }
+          const lines = registered.map((r) => `${r.id} → ${r.path}`);
+          return { content: [{ type: "text", text: ["Registered projects:", "", ...lines].join("\n") }] };
+        }
+
+        case "init": {
+          const targetPath = args?.path as string;
+          if (!targetPath) throw new ResearchValidationError("'path' is required.");
+
           if (args?.root) {
             initRoot(targetPath);
-            return {
-              content: [{ type: "text", text: `Multi-project research root initialized at ${targetPath}\n\nUse init with 'subproject' parameter to add research projects.` }],
-            };
+            const config = loadConfig(targetPath);
+            return { content: [{ type: "text", text: `Multi-project root initialized at ${targetPath}\nID: ${config?.id}\n\nUse init with 'subproject' to add research projects.` }] };
           }
 
-          // Init a subproject under an existing root
           if (args?.subproject) {
             const subName = args.subproject as string;
             initSubproject(targetPath, subName);
-            return {
-              content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\n\nFolders: findings/ candidates/ evaluations/` }],
-            };
+            const subConfig = loadConfig(path.join(targetPath, subName));
+            return { content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\nID: ${subConfig?.id}\n\nFolders: findings/ candidates/ evaluations/` }] };
           }
 
-          // Init a standalone project
           initProject(targetPath, args?.name as string | undefined);
-          return {
-            content: [{ type: "text", text: `Research project initialized at ${targetPath}\n\nFolders: findings/ candidates/ evaluations/\nConfig: research-md.json` }],
-          };
+          const config = loadConfig(targetPath);
+          return { content: [{ type: "text", text: `Research project initialized at ${targetPath}\nID: ${config?.id}\n\nFolders: findings/ candidates/ evaluations/` }] };
         }
 
         case "status": {
-          // If at a root with no project specified, show aggregate
-          const configDir = findConfigDir();
-          if (configDir && !projectArg) {
-            const config = loadConfig(configDir);
-            if (config && "projects" in config && Array.isArray((config as any).projects)) {
-              const projects = (config as any).projects as string[];
-              const lines = ["## Research Root Status", "", `**Projects (${projects.length}):**`];
-
-              for (const proj of projects) {
-                const resolved = resolveProject(proj);
-                if (!resolved) {
-                  lines.push(`\n### ${proj} — not initialized`);
-                  continue;
-                }
-                const root = resolved.projectRoot;
-                const findings = listFindings(root);
-                const candidates = listCandidates(root);
-                const criteria = loadDecisionCriteria(root);
-                const hasPeerReview = peerReviewExists(root);
-                const tbdCount = candidates.reduce((acc, c) => acc + (c.content.match(/_TBD_/g)?.length || 0), 0);
-
-                lines.push(
-                  `\n### ${proj}`,
-                  `  Criteria locked: ${criteria?.frontmatter.locked ? "Yes" : "No"} | Peer review: ${hasPeerReview ? "Yes" : "No"} | TBD: ${tbdCount}`,
-                  `  Findings: ${findings.length} | Candidates: ${candidates.length}`
-                );
-              }
-
-              return { content: [{ type: "text", text: lines.join("\n") }] };
-            }
-          }
-
-          // Single project status
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const findings = listFindings(root);
           const candidates = listCandidates(root);
           const criteria = loadDecisionCriteria(root);
@@ -364,7 +382,7 @@ export function createServer(): Server {
         }
 
         case "finding_create": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const title = args?.title as string;
           const claim = args?.claim as string;
           const evidence = (args?.evidence as FindingFrontmatter["evidence"]) || "UNVERIFIED";
@@ -381,7 +399,7 @@ export function createServer(): Server {
         }
 
         case "finding_list": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const findings = listFindings(root);
           if (findings.length === 0) return { content: [{ type: "text", text: "No findings yet." }] };
           const rows = findings.map((f) => `${f.frontmatter.id} | ${f.frontmatter.status.padEnd(10)} | ${f.frontmatter.evidence.padEnd(10)} | ${f.frontmatter.title}`);
@@ -389,7 +407,7 @@ export function createServer(): Server {
         }
 
         case "finding_update": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const id = (args?.id as string).padStart(4, "0");
           const findings = listFindings(root);
           const finding = findings.find((f) => f.frontmatter.id === id);
@@ -409,7 +427,7 @@ export function createServer(): Server {
         }
 
         case "candidate_create": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const title = args?.title as string;
           const slug = sanitizeSlug((args?.slug as string) || title);
           const description = (args?.description as string) || "_No description provided._";
@@ -425,7 +443,7 @@ export function createServer(): Server {
         }
 
         case "candidate_list": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const candidates = listCandidates(root);
           if (candidates.length === 0) return { content: [{ type: "text", text: "No candidates yet." }] };
           const rows = candidates.map((c) => `${c.frontmatter.verdict.padEnd(12)} | ${c.frontmatter.title}`);
@@ -433,7 +451,7 @@ export function createServer(): Server {
         }
 
         case "candidate_add_claim": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const slug = args?.slug as string;
           const claim = args?.claim as string;
           const fp = candidatePath(root, slug);
@@ -450,7 +468,7 @@ export function createServer(): Server {
         }
 
         case "candidate_resolve_claim": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const slug = args?.slug as string;
           const claimIndex = args?.claim_index as number;
           const result = args?.result as "Y" | "N";
@@ -475,7 +493,7 @@ export function createServer(): Server {
         }
 
         case "criteria_lock": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const criteriaFile = decisionCriteriaPath(root);
           if (!fs.existsSync(criteriaFile)) throw new ResearchNotFoundError("File", "evaluations/decision-criteria.md");
 
@@ -489,15 +507,13 @@ export function createServer(): Server {
         }
 
         case "candidate_score": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const slug = args?.slug as string;
           const scores = args?.scores as Record<string, number>;
           const notes = (args?.notes as string) || "";
 
           const gateResult = runScoringGates(root, slug);
-          if (!gateResult.passed) {
-            throw new ResearchGateError(gateResult.error!);
-          }
+          if (!gateResult.passed) throw new ResearchGateError(gateResult.error!);
 
           const fp = candidatePath(root, slug);
           const parsed = readMarkdown<CandidateFrontmatter>(fp);
@@ -512,7 +528,7 @@ export function createServer(): Server {
         }
 
         case "scoring_matrix_generate": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const criteria = loadDecisionCriteria(root);
           if (!criteria?.frontmatter.locked) throw new ResearchGateError("Criteria must be locked before generating scoring matrix.");
 
@@ -563,7 +579,7 @@ export function createServer(): Server {
         }
 
         case "peer_review_log": {
-          const { projectRoot: root } = getProject(projectArg);
+          const { projectRoot: root } = getProject(args?.research_id);
           const reviewer = args?.reviewer as string;
           const findings = args?.findings as string[];
           const notes = (args?.notes as string) || "";
@@ -588,7 +604,8 @@ export function createServer(): Server {
   // ── Resources ──────────────────────────────────────────────────────────────
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    if (!isInitialized()) {
+    const registered = listRegistered();
+    if (registered.length === 0) {
       return { resources: [INIT_REQUIRED_RESOURCE] };
     }
     return { resources: [...RESOURCE_DEFINITIONS] };
@@ -600,14 +617,20 @@ export function createServer(): Server {
     if (uri === "research://init-required") {
       return { contents: [{ uri, mimeType: "text/markdown", text: INIT_REQUIRED_GUIDE }] };
     }
-
     if (uri === "research://workflow/overview") {
       return { contents: [{ uri, mimeType: "text/markdown", text: WORKFLOW_OVERVIEW }] };
     }
 
-    // Data resources — try to resolve a project, fall back gracefully
-    const resolved = resolveProject();
-    if (!resolved) throw new ResearchNotInitializedError();
+    // Data resources use the first registered project (resources don't take params)
+    const registered = listRegistered();
+    if (registered.length === 0) {
+      return { contents: [{ uri, mimeType: "text/markdown", text: "No projects registered. Use `project_set` first." }] };
+    }
+
+    const resolved = resolveByGuid(registered[0].id);
+    if (!resolved) {
+      return { contents: [{ uri, mimeType: "text/markdown", text: "Active project could not be resolved." }] };
+    }
     const root = resolved.projectRoot;
 
     switch (uri) {
@@ -623,7 +646,7 @@ export function createServer(): Server {
       }
       case "research://scoring-matrix": {
         const mp = scoringMatrixPath(root);
-        const text = fs.existsSync(mp) ? fs.readFileSync(mp, "utf-8") : "_Not yet generated. Run `scoring_matrix_generate` after locking criteria._";
+        const text = fs.existsSync(mp) ? fs.readFileSync(mp, "utf-8") : "_Not yet generated._";
         return { contents: [{ uri, mimeType: "text/markdown", text }] };
       }
       case "research://status": {

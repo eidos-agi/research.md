@@ -1,5 +1,5 @@
 export { createServer, startServer } from "./server";
-export { findProjectRoot, loadConfig, initProject } from "./config";
+export { initProject, initRoot, initSubproject, loadConfig, registerProject } from "./config";
 export { ResearchError, ResearchValidationError, ResearchGateError, ResearchNotFoundError } from "./errors";
 
 if (require.main === module) {
