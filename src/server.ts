@@ -9,7 +9,16 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
-import { findProjectRoot, initProject } from "./config";
+import {
+  resolveProject,
+  findConfigDir,
+  loadConfig,
+  listProjects,
+  initProject,
+  initSubproject,
+  initRoot,
+  ResolvedProject,
+} from "./config";
 import { sanitizeSlug } from "./security";
 import {
   ResearchNotInitializedError,
@@ -47,15 +56,36 @@ function today(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function getRoot(): string {
-  const root = findProjectRoot();
-  if (!root) throw new ResearchNotInitializedError();
-  return root;
+/**
+ * Resolve which project to operate on. If the root is multi-project,
+ * requires either a project parameter or cwd inference.
+ */
+function getProject(projectName?: string): ResolvedProject {
+  const resolved = resolveProject(projectName);
+  if (!resolved) {
+    // Check if we found a root but couldn't pick a project
+    const configDir = findConfigDir();
+    if (configDir) {
+      const projects = listProjects(configDir);
+      if (projects.length > 0) {
+        throw new ResearchValidationError(
+          `Multiple projects available: ${projects.join(", ")}. Specify one with the 'project' parameter.`
+        );
+      }
+    }
+    throw new ResearchNotInitializedError();
+  }
+  return resolved;
 }
 
 function isInitialized(): boolean {
-  return findProjectRoot() !== null;
+  return findConfigDir() !== null;
 }
+
+// Optional project parameter added to every data tool
+const PROJECT_PARAM = {
+  project: { type: "string", description: "Subproject name (required if multi-project root)" },
+} as const;
 
 export function createServer(): Server {
   const server = new Server(
@@ -69,27 +99,31 @@ export function createServer(): Server {
   );
 
   // ── Tool definitions ───────────────────────────────────────────────────────
-  // Naming convention: entity_verb (aligned with Backlog.md's task_create pattern)
-  // All schemas use additionalProperties: false
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
         name: "init",
-        description: "Initialize a new research project with folder structure and config.",
+        description: "Initialize a research project. Use 'root: true' for multi-project container, or 'subproject' to add under an existing root.",
         inputSchema: {
           type: "object",
           properties: {
             path: { type: "string", description: "Directory to initialize (defaults to cwd)" },
             name: { type: "string", description: "Project name" },
+            root: { type: "boolean", description: "If true, create a multi-project root instead of a single project" },
+            subproject: { type: "string", description: "Create a subproject under the current root with this name" },
           },
           additionalProperties: false,
         },
       },
       {
         name: "status",
-        description: "Show project health: locked criteria, peer review, TBD count, finding and candidate summaries.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        description: "Show project health. At a root, shows all subprojects. In a subproject, shows that project's detail.",
+        inputSchema: {
+          type: "object",
+          properties: { ...PROJECT_PARAM },
+          additionalProperties: false,
+        },
       },
       {
         name: "finding_create",
@@ -102,6 +136,7 @@ export function createServer(): Server {
             claim: { type: "string", minLength: 1 },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             source: { type: "string" },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -109,7 +144,11 @@ export function createServer(): Server {
       {
         name: "finding_list",
         description: "List all findings with status and evidence grade.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        inputSchema: {
+          type: "object",
+          properties: { ...PROJECT_PARAM },
+          additionalProperties: false,
+        },
       },
       {
         name: "finding_update",
@@ -122,6 +161,7 @@ export function createServer(): Server {
             status: { type: "string", enum: ["open", "confirmed", "refuted", "superseded"] },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             claim: { type: "string" },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -136,6 +176,7 @@ export function createServer(): Server {
             title: { type: "string", minLength: 1 },
             slug: { type: "string" },
             description: { type: "string" },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -143,7 +184,11 @@ export function createServer(): Server {
       {
         name: "candidate_list",
         description: "List all candidates with verdict status.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        inputSchema: {
+          type: "object",
+          properties: { ...PROJECT_PARAM },
+          additionalProperties: false,
+        },
       },
       {
         name: "candidate_add_claim",
@@ -154,6 +199,7 @@ export function createServer(): Server {
           properties: {
             slug: { type: "string", minLength: 1 },
             claim: { type: "string", minLength: 1 },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -168,6 +214,7 @@ export function createServer(): Server {
             slug: { type: "string", minLength: 1 },
             claim_index: { type: "number", minimum: 1 },
             result: { type: "string", enum: ["Y", "N"] },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -175,7 +222,11 @@ export function createServer(): Server {
       {
         name: "criteria_lock",
         description: "Lock decision criteria, preventing further weight changes.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        inputSchema: {
+          type: "object",
+          properties: { ...PROJECT_PARAM },
+          additionalProperties: false,
+        },
       },
       {
         name: "candidate_score",
@@ -187,6 +238,7 @@ export function createServer(): Server {
             slug: { type: "string", minLength: 1 },
             scores: { type: "object", additionalProperties: { type: "number", minimum: 0, maximum: 10 } },
             notes: { type: "string" },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -194,7 +246,11 @@ export function createServer(): Server {
       {
         name: "scoring_matrix_generate",
         description: "Generate evaluations/scoring-matrix.md from locked criteria and candidates.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        inputSchema: {
+          type: "object",
+          properties: { ...PROJECT_PARAM },
+          additionalProperties: false,
+        },
       },
       {
         name: "peer_review_log",
@@ -206,6 +262,7 @@ export function createServer(): Server {
             reviewer: { type: "string", minLength: 1 },
             findings: { type: "array", items: { type: "string" }, minItems: 1 },
             notes: { type: "string" },
+            ...PROJECT_PARAM,
           },
           additionalProperties: false,
         },
@@ -217,11 +274,31 @@ export function createServer(): Server {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const projectArg = args?.project as string | undefined;
 
     try {
       switch (name) {
         case "init": {
           const targetPath = (args?.path as string) || process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
+
+          // Init a multi-project root
+          if (args?.root) {
+            initRoot(targetPath);
+            return {
+              content: [{ type: "text", text: `Multi-project research root initialized at ${targetPath}\n\nUse init with 'subproject' parameter to add research projects.` }],
+            };
+          }
+
+          // Init a subproject under an existing root
+          if (args?.subproject) {
+            const subName = args.subproject as string;
+            initSubproject(targetPath, subName);
+            return {
+              content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\n\nFolders: findings/ candidates/ evaluations/` }],
+            };
+          }
+
+          // Init a standalone project
           initProject(targetPath, args?.name as string | undefined);
           return {
             content: [{ type: "text", text: `Research project initialized at ${targetPath}\n\nFolders: findings/ candidates/ evaluations/\nConfig: research-md.json` }],
@@ -229,7 +306,40 @@ export function createServer(): Server {
         }
 
         case "status": {
-          const root = getRoot();
+          // If at a root with no project specified, show aggregate
+          const configDir = findConfigDir();
+          if (configDir && !projectArg) {
+            const config = loadConfig(configDir);
+            if (config && "projects" in config && Array.isArray((config as any).projects)) {
+              const projects = (config as any).projects as string[];
+              const lines = ["## Research Root Status", "", `**Projects (${projects.length}):**`];
+
+              for (const proj of projects) {
+                const resolved = resolveProject(proj);
+                if (!resolved) {
+                  lines.push(`\n### ${proj} — not initialized`);
+                  continue;
+                }
+                const root = resolved.projectRoot;
+                const findings = listFindings(root);
+                const candidates = listCandidates(root);
+                const criteria = loadDecisionCriteria(root);
+                const hasPeerReview = peerReviewExists(root);
+                const tbdCount = candidates.reduce((acc, c) => acc + (c.content.match(/_TBD_/g)?.length || 0), 0);
+
+                lines.push(
+                  `\n### ${proj}`,
+                  `  Criteria locked: ${criteria?.frontmatter.locked ? "Yes" : "No"} | Peer review: ${hasPeerReview ? "Yes" : "No"} | TBD: ${tbdCount}`,
+                  `  Findings: ${findings.length} | Candidates: ${candidates.length}`
+                );
+              }
+
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            }
+          }
+
+          // Single project status
+          const { projectRoot: root } = getProject(projectArg);
           const findings = listFindings(root);
           const candidates = listCandidates(root);
           const criteria = loadDecisionCriteria(root);
@@ -254,7 +364,7 @@ export function createServer(): Server {
         }
 
         case "finding_create": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const title = args?.title as string;
           const claim = args?.claim as string;
           const evidence = (args?.evidence as FindingFrontmatter["evidence"]) || "UNVERIFIED";
@@ -271,7 +381,7 @@ export function createServer(): Server {
         }
 
         case "finding_list": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const findings = listFindings(root);
           if (findings.length === 0) return { content: [{ type: "text", text: "No findings yet." }] };
           const rows = findings.map((f) => `${f.frontmatter.id} | ${f.frontmatter.status.padEnd(10)} | ${f.frontmatter.evidence.padEnd(10)} | ${f.frontmatter.title}`);
@@ -279,7 +389,7 @@ export function createServer(): Server {
         }
 
         case "finding_update": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const id = (args?.id as string).padStart(4, "0");
           const findings = listFindings(root);
           const finding = findings.find((f) => f.frontmatter.id === id);
@@ -299,7 +409,7 @@ export function createServer(): Server {
         }
 
         case "candidate_create": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const title = args?.title as string;
           const slug = sanitizeSlug((args?.slug as string) || title);
           const description = (args?.description as string) || "_No description provided._";
@@ -315,7 +425,7 @@ export function createServer(): Server {
         }
 
         case "candidate_list": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const candidates = listCandidates(root);
           if (candidates.length === 0) return { content: [{ type: "text", text: "No candidates yet." }] };
           const rows = candidates.map((c) => `${c.frontmatter.verdict.padEnd(12)} | ${c.frontmatter.title}`);
@@ -323,7 +433,7 @@ export function createServer(): Server {
         }
 
         case "candidate_add_claim": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const slug = args?.slug as string;
           const claim = args?.claim as string;
           const fp = candidatePath(root, slug);
@@ -340,7 +450,7 @@ export function createServer(): Server {
         }
 
         case "candidate_resolve_claim": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const slug = args?.slug as string;
           const claimIndex = args?.claim_index as number;
           const result = args?.result as "Y" | "N";
@@ -365,7 +475,7 @@ export function createServer(): Server {
         }
 
         case "criteria_lock": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const criteriaFile = decisionCriteriaPath(root);
           if (!fs.existsSync(criteriaFile)) throw new ResearchNotFoundError("File", "evaluations/decision-criteria.md");
 
@@ -379,7 +489,7 @@ export function createServer(): Server {
         }
 
         case "candidate_score": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const slug = args?.slug as string;
           const scores = args?.scores as Record<string, number>;
           const notes = (args?.notes as string) || "";
@@ -402,7 +512,7 @@ export function createServer(): Server {
         }
 
         case "scoring_matrix_generate": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const criteria = loadDecisionCriteria(root);
           if (!criteria?.frontmatter.locked) throw new ResearchGateError("Criteria must be locked before generating scoring matrix.");
 
@@ -453,7 +563,7 @@ export function createServer(): Server {
         }
 
         case "peer_review_log": {
-          const root = getRoot();
+          const { projectRoot: root } = getProject(projectArg);
           const reviewer = args?.reviewer as string;
           const findings = args?.findings as string[];
           const notes = (args?.notes as string) || "";
@@ -476,7 +586,6 @@ export function createServer(): Server {
   });
 
   // ── Resources ──────────────────────────────────────────────────────────────
-  // If not initialized, serve only init-required. Otherwise serve all.
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     if (!isInitialized()) {
@@ -488,18 +597,18 @@ export function createServer(): Server {
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
 
-    // Init-required fallback
     if (uri === "research://init-required") {
       return { contents: [{ uri, mimeType: "text/markdown", text: INIT_REQUIRED_GUIDE }] };
     }
 
-    // Workflow resources (available even without project data)
     if (uri === "research://workflow/overview") {
       return { contents: [{ uri, mimeType: "text/markdown", text: WORKFLOW_OVERVIEW }] };
     }
 
-    // Data resources require initialization
-    const root = getRoot();
+    // Data resources — try to resolve a project, fall back gracefully
+    const resolved = resolveProject();
+    if (!resolved) throw new ResearchNotInitializedError();
+    const root = resolved.projectRoot;
 
     switch (uri) {
       case "research://findings/all": {
