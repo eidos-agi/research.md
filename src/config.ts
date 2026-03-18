@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: ResearchConfig = {
  * Falls back to PWD env var, then process.cwd().
  */
 export function findProjectRoot(): string | null {
-  const start = process.env.PWD || process.cwd();
+  const start = process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
   let dir = start;
 
   for (let i = 0; i < 10; i++) {

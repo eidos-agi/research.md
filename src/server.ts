@@ -12,6 +12,13 @@ import * as path from "path";
 import { findProjectRoot, initProject } from "./config";
 import { sanitizeSlug } from "./security";
 import {
+  ResearchNotInitializedError,
+  ResearchNotFoundError,
+  ResearchGateError,
+  ResearchValidationError,
+  formatError,
+} from "./errors";
+import {
   listFindings,
   nextFindingId,
   findingPath,
@@ -29,6 +36,12 @@ import {
   DecisionCriteriaFrontmatter,
 } from "./files";
 import { runScoringGates } from "./gates";
+import {
+  INIT_REQUIRED_GUIDE,
+  WORKFLOW_OVERVIEW,
+  RESOURCE_DEFINITIONS,
+  INIT_REQUIRED_RESOURCE,
+} from "./resources";
 
 function today(): string {
   return new Date().toISOString().split("T")[0];
@@ -36,12 +49,12 @@ function today(): string {
 
 function getRoot(): string {
   const root = findProjectRoot();
-  if (!root) {
-    throw new Error(
-      "No research-md.json found. Run `research-md init` in your research project directory first."
-    );
-  }
+  if (!root) throw new ResearchNotInitializedError();
   return root;
+}
+
+function isInitialized(): boolean {
+  return findProjectRoot() !== null;
 }
 
 export function createServer(): Server {
@@ -55,6 +68,10 @@ export function createServer(): Server {
     }
   );
 
+  // ── Tool definitions ───────────────────────────────────────────────────────
+  // Naming convention: entity_verb (aligned with Backlog.md's task_create pattern)
+  // All schemas use additionalProperties: false
+
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
@@ -66,127 +83,137 @@ export function createServer(): Server {
             path: { type: "string", description: "Directory to initialize (defaults to cwd)" },
             name: { type: "string", description: "Project name" },
           },
+          additionalProperties: false,
         },
       },
       {
         name: "status",
-        description: "Show project health: locked criteria, peer review, TBD count, ADR statuses.",
-        inputSchema: { type: "object", properties: {} },
+        description: "Show project health: locked criteria, peer review, TBD count, finding and candidate summaries.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "create_finding",
+        name: "finding_create",
         description: "Create a new finding with evidence grade and source.",
         inputSchema: {
           type: "object",
           required: ["title", "claim"],
           properties: {
-            title: { type: "string" },
-            claim: { type: "string" },
+            title: { type: "string", minLength: 1 },
+            claim: { type: "string", minLength: 1 },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             source: { type: "string" },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "list_findings",
+        name: "finding_list",
         description: "List all findings with status and evidence grade.",
-        inputSchema: { type: "object", properties: {} },
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "update_finding",
+        name: "finding_update",
         description: "Update a finding's status, evidence grade, or claim.",
         inputSchema: {
           type: "object",
           required: ["id"],
           properties: {
-            id: { type: "string" },
+            id: { type: "string", minLength: 1 },
             status: { type: "string", enum: ["open", "confirmed", "refuted", "superseded"] },
             evidence: { type: "string", enum: ["HIGH", "MODERATE", "LOW", "UNVERIFIED"] },
             claim: { type: "string" },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "create_candidate",
+        name: "candidate_create",
         description: "Create a new candidate for evaluation.",
         inputSchema: {
           type: "object",
           required: ["title"],
           properties: {
-            title: { type: "string" },
+            title: { type: "string", minLength: 1 },
             slug: { type: "string" },
             description: { type: "string" },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "list_candidates",
+        name: "candidate_list",
         description: "List all candidates with verdict status.",
-        inputSchema: { type: "object", properties: {} },
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "add_validation_claim",
+        name: "candidate_add_claim",
         description: "Add a binary testable claim to a candidate's validation checklist.",
         inputSchema: {
           type: "object",
           required: ["slug", "claim"],
           properties: {
-            slug: { type: "string" },
-            claim: { type: "string" },
+            slug: { type: "string", minLength: 1 },
+            claim: { type: "string", minLength: 1 },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "resolve_validation_claim",
+        name: "candidate_resolve_claim",
         description: "Mark a validation claim Y or N (clears _TBD_).",
         inputSchema: {
           type: "object",
           required: ["slug", "claim_index", "result"],
           properties: {
-            slug: { type: "string" },
-            claim_index: { type: "number" },
+            slug: { type: "string", minLength: 1 },
+            claim_index: { type: "number", minimum: 1 },
             result: { type: "string", enum: ["Y", "N"] },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "lock_criteria",
+        name: "criteria_lock",
         description: "Lock decision criteria, preventing further weight changes.",
-        inputSchema: { type: "object", properties: {} },
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "score_candidate",
+        name: "candidate_score",
         description: "Score a candidate. Fails if criteria not locked, peer review missing, or _TBD_ items remain.",
         inputSchema: {
           type: "object",
           required: ["slug", "scores"],
           properties: {
-            slug: { type: "string" },
-            scores: { type: "object", additionalProperties: { type: "number" } },
+            slug: { type: "string", minLength: 1 },
+            scores: { type: "object", additionalProperties: { type: "number", minimum: 0, maximum: 10 } },
             notes: { type: "string" },
           },
+          additionalProperties: false,
         },
       },
       {
-        name: "generate_scoring_matrix",
+        name: "scoring_matrix_generate",
         description: "Generate evaluations/scoring-matrix.md from locked criteria and candidates.",
-        inputSchema: { type: "object", properties: {} },
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "log_peer_review",
+        name: "peer_review_log",
         description: "Log a peer review. Required before scoring.",
         inputSchema: {
           type: "object",
           required: ["reviewer", "findings"],
           properties: {
-            reviewer: { type: "string" },
-            findings: { type: "array", items: { type: "string" } },
+            reviewer: { type: "string", minLength: 1 },
+            findings: { type: "array", items: { type: "string" }, minItems: 1 },
             notes: { type: "string" },
           },
+          additionalProperties: false,
         },
       },
     ],
   }));
+
+  // ── Tool handlers ──────────────────────────────────────────────────────────
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
@@ -194,10 +221,10 @@ export function createServer(): Server {
     try {
       switch (name) {
         case "init": {
-          const targetPath = (args?.path as string) || process.env.PWD || process.cwd();
+          const targetPath = (args?.path as string) || process.env.RESEARCH_MD_CWD || process.env.PWD || process.cwd();
           initProject(targetPath, args?.name as string | undefined);
           return {
-            content: [{ type: "text", text: `Research project initialized at ${targetPath}\n\nFolders: findings/ candidates/ decisions/ evaluations/\nConfig: research-md.json` }],
+            content: [{ type: "text", text: `Research project initialized at ${targetPath}\n\nFolders: findings/ candidates/ evaluations/\nConfig: research-md.json` }],
           };
         }
 
@@ -226,7 +253,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: lines.join("\n") }] };
         }
 
-        case "create_finding": {
+        case "finding_create": {
           const root = getRoot();
           const title = args?.title as string;
           const claim = args?.claim as string;
@@ -243,7 +270,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Finding created: findings/${id}-${slug}.md\nID: ${id} | Evidence: ${evidence}` }] };
         }
 
-        case "list_findings": {
+        case "finding_list": {
           const root = getRoot();
           const findings = listFindings(root);
           if (findings.length === 0) return { content: [{ type: "text", text: "No findings yet." }] };
@@ -251,12 +278,12 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: ["ID   | Status     | Evidence   | Title", "---- | ---------- | ---------- | -----", ...rows].join("\n") }] };
         }
 
-        case "update_finding": {
+        case "finding_update": {
           const root = getRoot();
           const id = (args?.id as string).padStart(4, "0");
           const findings = listFindings(root);
           const finding = findings.find((f) => f.frontmatter.id === id);
-          if (!finding) throw new Error(`Finding ${id} not found.`);
+          if (!finding) throw new ResearchNotFoundError("Finding", id);
 
           const updated: FindingFrontmatter = { ...finding.frontmatter };
           if (args?.status) updated.status = args.status as FindingFrontmatter["status"];
@@ -271,14 +298,14 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Finding ${id} updated.` }] };
         }
 
-        case "create_candidate": {
+        case "candidate_create": {
           const root = getRoot();
           const title = args?.title as string;
           const slug = sanitizeSlug((args?.slug as string) || title);
           const description = (args?.description as string) || "_No description provided._";
           const fp = candidatePath(root, slug);
 
-          if (fs.existsSync(fp)) throw new Error(`Candidate '${slug}' already exists.`);
+          if (fs.existsSync(fp)) throw new ResearchValidationError(`Candidate '${slug}' already exists.`);
 
           const frontmatter: CandidateFrontmatter = { title, verdict: "provisional" };
           const content = `\n## What It Is\n\n${description}\n\n## Validation Checklist\n\n- [ ] Claim 1: _TBD_\n\n## Scoring\n\n_Not yet scored._\n`;
@@ -287,7 +314,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Candidate created: candidates/${slug}.md` }] };
         }
 
-        case "list_candidates": {
+        case "candidate_list": {
           const root = getRoot();
           const candidates = listCandidates(root);
           if (candidates.length === 0) return { content: [{ type: "text", text: "No candidates yet." }] };
@@ -295,12 +322,12 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: ["Verdict       | Title", "------------- | -----", ...rows].join("\n") }] };
         }
 
-        case "add_validation_claim": {
+        case "candidate_add_claim": {
           const root = getRoot();
           const slug = args?.slug as string;
           const claim = args?.claim as string;
           const fp = candidatePath(root, slug);
-          if (!fs.existsSync(fp)) throw new Error(`Candidate '${slug}' not found.`);
+          if (!fs.existsSync(fp)) throw new ResearchNotFoundError("Candidate", slug);
 
           const parsed = readMarkdown<CandidateFrontmatter>(fp);
           const newContent = parsed.content.replace(
@@ -312,13 +339,13 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Claim added to '${slug}'.` }] };
         }
 
-        case "resolve_validation_claim": {
+        case "candidate_resolve_claim": {
           const root = getRoot();
           const slug = args?.slug as string;
           const claimIndex = args?.claim_index as number;
           const result = args?.result as "Y" | "N";
           const fp = candidatePath(root, slug);
-          if (!fs.existsSync(fp)) throw new Error(`Candidate '${slug}' not found.`);
+          if (!fs.existsSync(fp)) throw new ResearchNotFoundError("Candidate", slug);
 
           const parsed = readMarkdown<CandidateFrontmatter>(fp);
           let count = 0;
@@ -331,16 +358,16 @@ export function createServer(): Server {
             }
           );
 
-          if (newContent === original) throw new Error(`Claim ${claimIndex} not found or already resolved in '${slug}'.`);
+          if (newContent === original) throw new ResearchNotFoundError("Claim", String(claimIndex));
 
           writeMarkdown(fp, parsed.frontmatter, newContent);
           return { content: [{ type: "text", text: `Claim ${claimIndex} in '${slug}' marked ${result}.` }] };
         }
 
-        case "lock_criteria": {
+        case "criteria_lock": {
           const root = getRoot();
           const criteriaFile = decisionCriteriaPath(root);
-          if (!fs.existsSync(criteriaFile)) throw new Error("No decision-criteria.md found in evaluations/.");
+          if (!fs.existsSync(criteriaFile)) throw new ResearchNotFoundError("File", "evaluations/decision-criteria.md");
 
           const parsed = readMarkdown<DecisionCriteriaFrontmatter>(criteriaFile);
           if (parsed.frontmatter.locked) {
@@ -351,7 +378,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Decision criteria locked on ${today()}. Weights are now frozen.` }] };
         }
 
-        case "score_candidate": {
+        case "candidate_score": {
           const root = getRoot();
           const slug = args?.slug as string;
           const scores = args?.scores as Record<string, number>;
@@ -359,7 +386,7 @@ export function createServer(): Server {
 
           const gateResult = runScoringGates(root, slug);
           if (!gateResult.passed) {
-            return { content: [{ type: "text", text: `GATE FAILED: ${gateResult.error}` }], isError: true };
+            throw new ResearchGateError(gateResult.error!);
           }
 
           const fp = candidatePath(root, slug);
@@ -374,10 +401,10 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: `Scored '${slug}'. Total: ${total}\n${Object.entries(scores).map(([k, v]) => `  ${k}: ${v}`).join("\n")}` }] };
         }
 
-        case "generate_scoring_matrix": {
+        case "scoring_matrix_generate": {
           const root = getRoot();
           const criteria = loadDecisionCriteria(root);
-          if (!criteria?.frontmatter.locked) throw new Error("Criteria must be locked before generating scoring matrix.");
+          if (!criteria?.frontmatter.locked) throw new ResearchGateError("Criteria must be locked before generating scoring matrix.");
 
           const candidates = listCandidates(root);
           const matrixPath = scoringMatrixPath(root);
@@ -425,7 +452,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: "Scoring matrix generated at evaluations/scoring-matrix.md" }] };
         }
 
-        case "log_peer_review": {
+        case "peer_review_log": {
           const root = getRoot();
           const reviewer = args?.reviewer as string;
           const findings = args?.findings as string[];
@@ -441,27 +468,37 @@ export function createServer(): Server {
         }
 
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          throw new ResearchValidationError(`Unknown tool: ${name}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      return formatError(err);
     }
   });
 
-  // Resources
+  // ── Resources ──────────────────────────────────────────────────────────────
+  // If not initialized, serve only init-required. Otherwise serve all.
 
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: [
-      { uri: "research://findings/all", name: "All Findings", mimeType: "text/markdown" },
-      { uri: "research://candidates/all", name: "All Candidates", mimeType: "text/markdown" },
-      { uri: "research://scoring-matrix", name: "Scoring Matrix", mimeType: "text/markdown" },
-      { uri: "research://status", name: "Project Status", mimeType: "text/markdown" },
-    ],
-  }));
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    if (!isInitialized()) {
+      return { resources: [INIT_REQUIRED_RESOURCE] };
+    }
+    return { resources: [...RESOURCE_DEFINITIONS] };
+  });
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
+
+    // Init-required fallback
+    if (uri === "research://init-required") {
+      return { contents: [{ uri, mimeType: "text/markdown", text: INIT_REQUIRED_GUIDE }] };
+    }
+
+    // Workflow resources (available even without project data)
+    if (uri === "research://workflow/overview") {
+      return { contents: [{ uri, mimeType: "text/markdown", text: WORKFLOW_OVERVIEW }] };
+    }
+
+    // Data resources require initialization
     const root = getRoot();
 
     switch (uri) {
@@ -477,7 +514,7 @@ export function createServer(): Server {
       }
       case "research://scoring-matrix": {
         const mp = scoringMatrixPath(root);
-        const text = fs.existsSync(mp) ? fs.readFileSync(mp, "utf-8") : "_Not yet generated. Run `generate_scoring_matrix` after locking criteria._";
+        const text = fs.existsSync(mp) ? fs.readFileSync(mp, "utf-8") : "_Not yet generated. Run `scoring_matrix_generate` after locking criteria._";
         return { contents: [{ uri, mimeType: "text/markdown", text }] };
       }
       case "research://status": {
@@ -489,7 +526,7 @@ export function createServer(): Server {
         return { contents: [{ uri, mimeType: "text/markdown", text }] };
       }
       default:
-        throw new Error(`Unknown resource: ${uri}`);
+        throw new ResearchNotFoundError("Resource", uri);
     }
   });
 
