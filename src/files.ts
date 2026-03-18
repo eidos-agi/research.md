@@ -17,13 +17,6 @@ export interface CandidateFrontmatter {
   verdict: "provisional" | "recommended" | "eliminated";
 }
 
-export interface AdrFrontmatter {
-  id: string;
-  title: string;
-  status: "proposed" | "accepted" | "superseded";
-  date: string;
-}
-
 export interface DecisionCriteriaFrontmatter {
   locked: boolean;
   locked_date: string | null;
@@ -99,31 +92,6 @@ export function listCandidates(projectRoot: string): ParsedFile<CandidateFrontma
 
 export function candidatePath(projectRoot: string, slug: string): string {
   return safePath(projectRoot, "candidates", `${slug}.md`);
-}
-
-// ── ADRs ─────────────────────────────────────────────────────────────────────
-
-export function listAdrs(projectRoot: string): ParsedFile<AdrFrontmatter>[] {
-  const dir = safePath(projectRoot, "decisions");
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .map((f) => readMarkdown<AdrFrontmatter>(path.join(dir, f)));
-}
-
-export function nextAdrId(projectRoot: string): string {
-  const adrs = listAdrs(projectRoot);
-  const max = adrs.reduce((acc, a) => {
-    const n = parseInt(a.frontmatter.id, 10);
-    return isNaN(n) ? acc : Math.max(acc, n);
-  }, 0);
-  return String(max + 1).padStart(4, "0");
-}
-
-export function adrPath(projectRoot: string, id: string, slug: string): string {
-  return safePath(projectRoot, "decisions", `${id}-${slug}.md`);
 }
 
 // ── Decision Criteria ────────────────────────────────────────────────────────

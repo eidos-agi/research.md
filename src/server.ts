@@ -19,9 +19,6 @@ import {
   writeMarkdown,
   listCandidates,
   candidatePath,
-  listAdrs,
-  nextAdrId,
-  adrPath,
   loadDecisionCriteria,
   decisionCriteriaPath,
   peerReviewPath,
@@ -29,13 +26,9 @@ import {
   scoringMatrixPath,
   FindingFrontmatter,
   CandidateFrontmatter,
-  AdrFrontmatter,
   DecisionCriteriaFrontmatter,
 } from "./files";
-import {
-  runScoringGates,
-  gateAdrReadyForAcceptance,
-} from "./gates";
+import { runScoringGates } from "./gates";
 
 function today(): string {
   return new Date().toISOString().split("T")[0];
@@ -180,30 +173,6 @@ export function createServer(): Server {
         inputSchema: { type: "object", properties: {} },
       },
       {
-        name: "create_adr",
-        description: "Create a new ADR with status 'proposed'.",
-        inputSchema: {
-          type: "object",
-          required: ["title"],
-          properties: {
-            title: { type: "string" },
-            context: { type: "string" },
-          },
-        },
-      },
-      {
-        name: "update_adr_status",
-        description: "Transition ADR status. Fails promoting to 'accepted' if Alternatives or Risks sections empty.",
-        inputSchema: {
-          type: "object",
-          required: ["id", "status"],
-          properties: {
-            id: { type: "string" },
-            status: { type: "string", enum: ["proposed", "accepted", "superseded"] },
-          },
-        },
-      },
-      {
         name: "log_peer_review",
         description: "Log a peer review. Required before scoring.",
         inputSchema: {
@@ -236,7 +205,6 @@ export function createServer(): Server {
           const root = getRoot();
           const findings = listFindings(root);
           const candidates = listCandidates(root);
-          const adrs = listAdrs(root);
           const criteria = loadDecisionCriteria(root);
           const hasPeerReview = peerReviewExists(root);
           const tbdCount = candidates.reduce((acc, c) => acc + (c.content.match(/_TBD_/g)?.length || 0), 0);
@@ -253,9 +221,6 @@ export function createServer(): Server {
             "",
             `**Candidates (${candidates.length}):**`,
             ...candidates.map((c) => `  ${c.frontmatter.title} — ${c.frontmatter.verdict}`),
-            "",
-            `**ADRs (${adrs.length}):**`,
-            ...adrs.map((a) => `  ADR-${a.frontmatter.id} [${a.frontmatter.status}] ${a.frontmatter.title}`),
           ];
 
           return { content: [{ type: "text", text: lines.join("\n") }] };
@@ -460,38 +425,6 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: "Scoring matrix generated at evaluations/scoring-matrix.md" }] };
         }
 
-        case "create_adr": {
-          const root = getRoot();
-          const title = args?.title as string;
-          const context = (args?.context as string) || "_No context provided._";
-          const id = nextAdrId(root);
-          const slug = sanitizeSlug(title);
-          const fp = adrPath(root, id, slug);
-
-          writeMarkdown(fp, { id, title, status: "proposed" as const, date: today() }, `\n## Context\n\n${context}\n\n## Decision\n\n_To be determined._\n\n## Alternatives Considered\n\n_None documented yet._\n\n## Negative / Trade-offs\n\n_None documented yet._\n\n## Risks\n\n_None documented yet._\n\n## Consequences\n\n_None documented yet._\n`);
-
-          return { content: [{ type: "text", text: `ADR created: decisions/${id}-${slug}.md\nStatus: proposed` }] };
-        }
-
-        case "update_adr_status": {
-          const root = getRoot();
-          const id = (args?.id as string).padStart(4, "0");
-          const newStatus = args?.status as AdrFrontmatter["status"];
-          const adrs = listAdrs(root);
-          const adr = adrs.find((a) => a.frontmatter.id === id);
-          if (!adr) throw new Error(`ADR ${id} not found.`);
-
-          if (newStatus === "accepted") {
-            const gateResult = gateAdrReadyForAcceptance(adr);
-            if (!gateResult.passed) {
-              return { content: [{ type: "text", text: `GATE FAILED: ${gateResult.error}` }], isError: true };
-            }
-          }
-
-          writeMarkdown(adr.filePath, { ...adr.frontmatter, status: newStatus }, adr.content);
-          return { content: [{ type: "text", text: `ADR ${id} status updated to '${newStatus}'.` }] };
-        }
-
         case "log_peer_review": {
           const root = getRoot();
           const reviewer = args?.reviewer as string;
@@ -522,7 +455,6 @@ export function createServer(): Server {
     resources: [
       { uri: "research://findings/all", name: "All Findings", mimeType: "text/markdown" },
       { uri: "research://candidates/all", name: "All Candidates", mimeType: "text/markdown" },
-      { uri: "research://decisions/all", name: "All ADRs", mimeType: "text/markdown" },
       { uri: "research://scoring-matrix", name: "Scoring Matrix", mimeType: "text/markdown" },
       { uri: "research://status", name: "Project Status", mimeType: "text/markdown" },
     ],
@@ -543,11 +475,6 @@ export function createServer(): Server {
         const text = candidates.length === 0 ? "_No candidates yet._" : candidates.map((c) => `# ${c.frontmatter.title}\n**Verdict:** ${c.frontmatter.verdict}\n${c.content}`).join("\n\n---\n\n");
         return { contents: [{ uri, mimeType: "text/markdown", text }] };
       }
-      case "research://decisions/all": {
-        const adrs = listAdrs(root);
-        const text = adrs.length === 0 ? "_No ADRs yet._" : adrs.map((a) => `# ADR-${a.frontmatter.id}: ${a.frontmatter.title}\n**Status:** ${a.frontmatter.status}\n${a.content}`).join("\n\n---\n\n");
-        return { contents: [{ uri, mimeType: "text/markdown", text }] };
-      }
       case "research://scoring-matrix": {
         const mp = scoringMatrixPath(root);
         const text = fs.existsSync(mp) ? fs.readFileSync(mp, "utf-8") : "_Not yet generated. Run `generate_scoring_matrix` after locking criteria._";
@@ -556,10 +483,9 @@ export function createServer(): Server {
       case "research://status": {
         const findings = listFindings(root);
         const candidates = listCandidates(root);
-        const adrs = listAdrs(root);
         const criteria = loadDecisionCriteria(root);
         const tbdCount = candidates.reduce((acc, c) => acc + (c.content.match(/_TBD_/g)?.length || 0), 0);
-        const text = ["# Research Project Status", "", `- Criteria locked: ${criteria?.frontmatter.locked ? "Yes" : "No"}`, `- Peer review: ${peerReviewExists(root) ? "Yes" : "No"}`, `- TBD items: ${tbdCount}`, `- Findings: ${findings.length}`, `- Candidates: ${candidates.length}`, `- ADRs: ${adrs.length}`].join("\n");
+        const text = ["# Research Project Status", "", `- Criteria locked: ${criteria?.frontmatter.locked ? "Yes" : "No"}`, `- Peer review: ${peerReviewExists(root) ? "Yes" : "No"}`, `- TBD items: ${tbdCount}`, `- Findings: ${findings.length}`, `- Candidates: ${candidates.length}`].join("\n");
         return { contents: [{ uri, mimeType: "text/markdown", text }] };
       }
       default:

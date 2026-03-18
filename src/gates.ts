@@ -2,9 +2,6 @@ import {
   loadDecisionCriteria,
   peerReviewExists,
   listCandidates,
-  sectionHasContent,
-  ParsedFile,
-  AdrFrontmatter,
 } from "./files";
 
 export interface GateResult {
@@ -68,29 +65,6 @@ export function gateCandidateNoTbd(
     return {
       passed: false,
       error: `Candidate '${slug}' has unresolved _TBD_ items in its validation checklist. Resolve all claims before scoring.`,
-    };
-  }
-
-  return { passed: true };
-}
-
-/**
- * Gate: ADR must have Alternatives and Risks sections populated before acceptance.
- */
-export function gateAdrReadyForAcceptance(
-  adr: ParsedFile<AdrFrontmatter>
-): GateResult {
-  const hasAlternatives = sectionHasContent(adr.content, "Alternatives Considered");
-  const hasRisks = sectionHasContent(adr.content, "Risks");
-
-  const missing: string[] = [];
-  if (!hasAlternatives) missing.push("Alternatives Considered");
-  if (!hasRisks) missing.push("Risks");
-
-  if (missing.length > 0) {
-    return {
-      passed: false,
-      error: `Cannot accept ADR — the following sections are empty: ${missing.join(", ")}. Fill them in before accepting.`,
     };
   }
 
