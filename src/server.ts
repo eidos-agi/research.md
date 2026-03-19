@@ -135,7 +135,7 @@ export function createServer(): Server {
       },
       {
         name: "init",
-        description: "Initialize a new research project with folder structure and GUID.",
+        description: "Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in research-md.json so any future session can understand the research without prior conversation history.",
         inputSchema: {
           type: "object",
           required: ["path"],
@@ -144,6 +144,8 @@ export function createServer(): Server {
             name: { type: "string", description: "Project name" },
             root: { type: "boolean", description: "Create a multi-project root" },
             subproject: { type: "string", description: "Create a subproject under this root" },
+            question: { type: "string", description: "The research question — what are we trying to answer? One or two sentences." },
+            context: { type: "string", description: "Full research brief. Be comprehensive: background, motivation, constraints, what we already know, what systems/artifacts are involved, who cares about the outcome, and what 'done' looks like. This should be long enough that a cold-start session can pick up the research without any prior conversation." },
           },
           additionalProperties: false,
         },
@@ -363,6 +365,8 @@ export function createServer(): Server {
           const info = registerProject(projectPath);
 
           const lines = [`Registered: ${projectPath}`, `ID: ${info.id}`, `Name: ${info.projectName}`];
+          if (info.question) lines.push(`\n**Question:** ${info.question}`);
+          if (info.context) lines.push(`\n**Context:**\n${info.context}`);
           if (info.isRoot) {
             lines.push(`\nThis is a multi-project root with ${info.projects.length} subproject(s).`);
             lines.push("Subprojects also registered. Read each subproject's research-md.json for its research_id.");
@@ -394,14 +398,20 @@ export function createServer(): Server {
 
           if (args?.subproject) {
             const subName = args.subproject as string;
-            initSubproject(targetPath, subName);
+            initSubproject(targetPath, subName, args?.question as string | undefined, args?.context as string | undefined);
             const subConfig = loadConfig(path.join(targetPath, subName));
-            return { content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\nID: ${subConfig?.id}\n\nFolders: findings/ candidates/ evaluations/` }] };
+            const subWarnings: string[] = [];
+            if (!args?.question) subWarnings.push("WARNING: No research question provided.");
+            if (!args?.context) subWarnings.push("WARNING: No context brief provided.");
+            return { content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\nID: ${subConfig?.id}\n\nFolders: findings/ candidates/ evaluations/${subWarnings.length ? "\n\n" + subWarnings.join("\n") : ""}` }] };
           }
 
-          initProject(targetPath, args?.name as string | undefined);
+          initProject(targetPath, args?.name as string | undefined, args?.question as string | undefined, args?.context as string | undefined);
           const config = loadConfig(targetPath);
-          return { content: [{ type: "text", text: `Research project initialized at ${targetPath}\nID: ${config?.id}\n\nFolders: findings/ candidates/ evaluations/` }] };
+          const warnings: string[] = [];
+          if (!args?.question) warnings.push("WARNING: No research question provided. Future sessions won't know what this research is about.");
+          if (!args?.context) warnings.push("WARNING: No context brief provided. Future sessions will lack the background needed to continue this research.");
+          return { content: [{ type: "text", text: `Research project initialized at ${targetPath}\nID: ${config?.id}\n\nFolders: findings/ candidates/ evaluations/${warnings.length ? "\n\n" + warnings.join("\n") : ""}` }] };
         }
 
         case "status": {
@@ -415,6 +425,8 @@ export function createServer(): Server {
           const lines = [
             `## ${projectConfig.projectName} — Research Status`,
             "",
+            ...(projectConfig.question ? [`**Question:** ${projectConfig.question}`, ""] : []),
+            ...(projectConfig.context ? [`**Context:**`, projectConfig.context, ""] : []),
             `**Phase:** ${projectConfig.phase}`,
             `**Criteria locked:** ${criteria?.frontmatter.locked ? `Yes (${criteria.frontmatter.locked_date})` : "No"}`,
             `**Peer review logged:** ${hasPeerReview ? "Yes" : "No"}`,

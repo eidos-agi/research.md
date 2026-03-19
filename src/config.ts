@@ -48,6 +48,10 @@ export interface ProjectConfig {
   created: string;
   phase: ProjectPhase;
   transitions: PhaseTransition[];
+  /** The research question — what are we trying to answer? */
+  question?: string;
+  /** Full research brief — background, motivation, constraints, what we already know. Long-form. */
+  context?: string;
 }
 
 export interface RootConfig {
@@ -78,7 +82,7 @@ const guidToPath: Map<string, string> = new Map();
 /**
  * Register a project path by its GUID. Called by project_set.
  */
-export function registerProject(projectPath: string): { id: string; projectName: string; isRoot: boolean; projects: string[] } {
+export function registerProject(projectPath: string): { id: string; projectName: string; isRoot: boolean; projects: string[]; question?: string; context?: string } {
   const absPath = path.resolve(projectPath);
   const config = loadConfig(absPath);
   if (!config) {
@@ -102,7 +106,8 @@ export function registerProject(projectPath: string): { id: string; projectName:
     return { id: config.id, projectName: "(root)", isRoot: true, projects: config.projects };
   }
 
-  return { id: config.id, projectName: (config as ProjectConfig).projectName, isRoot: false, projects: [] };
+  const pc = config as ProjectConfig;
+  return { id: config.id, projectName: pc.projectName, isRoot: false, projects: [], question: pc.question, context: pc.context };
 }
 
 /**
@@ -243,7 +248,7 @@ export function requirePhase(config: ProjectConfig, minPhase: ProjectPhase, acti
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-export function initProject(targetDir: string, projectName?: string): void {
+export function initProject(targetDir: string, projectName?: string, question?: string, context?: string): void {
   const dirs = ["findings", "candidates", "evaluations"];
 
   for (const dir of dirs) {
@@ -261,14 +266,16 @@ export function initProject(targetDir: string, projectName?: string): void {
     created: now,
     phase: "research",
     transitions: [{ phase: "research", date: now }],
+    ...(question ? { question } : {}),
+    ...(context ? { context } : {}),
   };
 
   saveConfig(targetDir, config);
 }
 
-export function initSubproject(rootDir: string, projectName: string): void {
+export function initSubproject(rootDir: string, projectName: string, question?: string, context?: string): void {
   const subDir = path.join(rootDir, projectName);
-  initProject(subDir, projectName);
+  initProject(subDir, projectName, question, context);
 
   const rootConfig = loadConfig(rootDir);
   if (rootConfig && isRootConfig(rootConfig)) {
