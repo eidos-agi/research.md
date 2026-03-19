@@ -27,7 +27,7 @@ from pdf_brand import (
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.lib.colors import HexColor, white
+from reportlab.lib.colors import white
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     HRFlowable, KeepTogether, CondPageBreak,
@@ -223,10 +223,40 @@ def render_brief(md_path, brand, output_path=None):
             elif btype == 'h2':
                 story.append(CondPageBreak(1.5 * inch))
                 story.append(Spacer(1, 8))
-                story.append(HRFlowable(width='100%', thickness=1.5,
-                             color=brand.primary, spaceAfter=2, spaceBefore=2))
-                story.append(Paragraph(inline_markup(block['text'], brand), styles['h2']))
-                i += 1
+                # Check if the next blocks are paragraph + table — keep them together
+                # to prevent orphaned headings (e.g. "Design Rules" + intro + table)
+                h2_flowables = [
+                    HRFlowable(width='100%', thickness=1.5,
+                               color=brand.primary, spaceAfter=2, spaceBefore=2),
+                    Paragraph(inline_markup(block['text'], brand), styles['h2']),
+                ]
+                # Peek ahead: paragraph then table?
+                if (i + 2 < len(blocks)
+                        and blocks[i + 1]['type'] == 'paragraph'
+                        and blocks[i + 2]['type'] == 'table'):
+                    next_para = blocks[i + 1]
+                    next_tbl = blocks[i + 2]
+                    h2_flowables.append(
+                        Paragraph(inline_markup(next_para['text'], brand), styles['body']))
+                    h2_flowables.append(Spacer(1, 4))
+                    # Build the table
+                    rows_data, has_header = parse_table_data(next_tbl['lines'])
+                    if rows_data and has_header and len(rows_data) > 1:
+                        num_cols = max(len(r) for r in rows_data)
+                        rows_data = [r + [''] * (num_cols - len(r)) for r in rows_data]
+                        header_row = [Paragraph(inline_markup(c, brand), styles['cell_bold'])
+                                      for c in rows_data[0]]
+                        body_rows = [[Paragraph(inline_markup(c, brand), styles['cell'])
+                                      for c in row] for row in rows_data[1:]]
+                        col_w = USABLE / num_cols
+                        t = tbl(brand, header_row, body_rows, [col_w] * num_cols)
+                        h2_flowables.append(t)
+                    story.append(KeepTogether(h2_flowables))
+                    story.append(Spacer(1, 6))
+                    i += 3  # skip h2 + paragraph + table
+                else:
+                    story.extend(h2_flowables)
+                    i += 1
 
             elif btype == 'h3':
                 story.append(Paragraph(inline_markup(block['text'], brand), styles['h3']))
@@ -242,7 +272,30 @@ def render_brief(md_path, brand, output_path=None):
                 i += 1
 
             elif btype == 'evidence':
-                story.append(Paragraph(inline_markup(block['text'], brand), styles['meta']))
+                # Parse hero metrics from evidence line and render as StatCards
+                # e.g. "**Evidence:** 19 findings (14 HIGH, 5 MODERATE) | 5 candidates scored | Peer reviewed: Yes"
+                raw = block['text']
+                stats = []
+                # Total findings
+                m_findings = re.search(r'(\d+)\s+findings', raw)
+                if m_findings:
+                    stats.append((m_findings.group(1), "Findings"))
+                # HIGH evidence count
+                m_high = re.search(r'(\d+)\s+HIGH', raw)
+                if m_high:
+                    stats.append((m_high.group(1), "HIGH Evidence"))
+                # Candidates
+                m_cand = re.search(r'(\d+)\s+candidates', raw)
+                if m_cand:
+                    stats.append((m_cand.group(1), "Candidates"))
+                # Peer reviewed
+                m_peer = re.search(r'Peer review(?:ed)?:\s*(Yes|No)', raw, re.IGNORECASE)
+                if m_peer:
+                    stats.append((m_peer.group(1), "Peer Reviewed"))
+                if stats:
+                    story.append(StatCard(brand, stats))
+                else:
+                    story.append(Paragraph(inline_markup(raw, brand), styles['meta']))
                 story.append(Spacer(1, 6))
                 i += 1
 
@@ -257,7 +310,7 @@ def render_brief(md_path, brand, output_path=None):
                 if text.startswith('**Rationale:**'):
                     story.append(AccentBox(brand, inline_markup(text, brand),
                                            bold=False, size=8,
-                                           bg=HexColor("#F5F5F5"),
+                                           bg=brand.primary_light,
                                            border=brand.muted,
                                            text_color=brand.dark))
                 else:
@@ -277,7 +330,7 @@ def render_brief(md_path, brand, output_path=None):
                         story.append(AccentBox(brand, markup, bold=True, size=9))
                         if body_text:
                             story.append(Paragraph(inline_markup(body_text, brand), styles['body']))
-                        story.append(Spacer(1, 6))
+                        story.append(Spacer(1, 3))
                     else:
                         story.append(Paragraph(
                             f'<bullet>&bull;</bullet> {inline_markup(item, brand)}',
