@@ -363,6 +363,18 @@ export function createServer(): Server {
           additionalProperties: false,
         },
       },
+      {
+        name: "research_report",
+        description: "Generate a FULL research report from a completed project. Unlike research_brief (which truncates to top findings), the report includes ALL findings, ALL candidates with full descriptions and scoring details, the complete scoring matrix, and every section unabridged. Produces REPORT.md and REPORT.pdf.",
+        inputSchema: {
+          type: "object",
+          required: ["research_id"],
+          properties: {
+            ...RID,
+          },
+          additionalProperties: false,
+        },
+      },
     ],
   }));
 
@@ -1018,6 +1030,261 @@ export function createServer(): Server {
           }
 
           return { content: [{ type: "text", text: `Research brief generated: BRIEF.md (${brief.length} lines)\n\n7 layers: One-liner → Key Findings → Candidates → Decision → Playbook → Design Rules → Methodology\n\nAudience: ${audience}${pdfStatus}` }] };
+        }
+
+        case "research_report": {
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
+          const findings = listFindings(root);
+          const candidates = listCandidates(root);
+          const criteria = loadDecisionCriteria(root);
+          const hasPeerReview = peerReviewExists(root);
+
+          // Read DECISION.md if it exists
+          const decisionPath = path.join(root, "DECISION.md");
+          const decisionContent = fs.existsSync(decisionPath)
+            ? fs.readFileSync(decisionPath, "utf-8")
+            : "";
+
+          // Read scoring matrix if it exists
+          const matrixPath = scoringMatrixPath(root);
+          const matrixContent = fs.existsSync(matrixPath)
+            ? fs.readFileSync(matrixPath, "utf-8")
+            : "";
+
+          // Group findings by evidence grade
+          const highFindings = findings.filter(f => f.frontmatter.evidence === "HIGH");
+          const modFindings = findings.filter(f => f.frontmatter.evidence === "MODERATE");
+          const lowFindings = findings.filter(f => f.frontmatter.evidence === "LOW");
+          const unverifiedFindings = findings.filter(f => f.frontmatter.evidence === "UNVERIFIED");
+
+          const report: string[] = [];
+          const sections: string[] = [];
+
+          // ── SECTION 1: Title + Question + Verdict ──
+          report.push(`# Research Report: ${projectConfig.projectName}`);
+          report.push("");
+          report.push(`*Full report generated ${today()} by research.md*`);
+          report.push("");
+
+          if (projectConfig.question) {
+            report.push(`> **Question:** ${projectConfig.question}`);
+            report.push("");
+          }
+
+          // Verdict from DECISION.md
+          if (decisionContent) {
+            const decisionLines = decisionContent.split("\n");
+            const decisionStatement = decisionLines.find(l => l.startsWith("## Decision"));
+            const decisionIdx = decisionLines.indexOf(decisionStatement || "");
+            if (decisionIdx >= 0) {
+              for (let i = decisionIdx + 1; i < decisionLines.length; i++) {
+                const line = decisionLines[i].trim();
+                if (line && !line.startsWith("#") && !line.startsWith("*")) {
+                  report.push(`**Verdict:** ${line}`);
+                  report.push("");
+                  break;
+                }
+              }
+            }
+          }
+          sections.push("Title + Question + Verdict");
+
+          // ── SECTION 2: Evidence Summary ──
+          report.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE, ${lowFindings.length} LOW, ${unverifiedFindings.length} UNVERIFIED) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"}`);
+          report.push("");
+          sections.push("Evidence Summary");
+
+          // ── SECTION 3: ALL Findings (grouped by evidence grade) ──
+          report.push("---");
+          report.push("");
+          report.push("## All Findings");
+          report.push("");
+
+          const renderFindingGroup = (label: string, group: typeof findings) => {
+            if (group.length === 0) return;
+            report.push(`### ${label} Evidence (${group.length})`);
+            report.push("");
+            for (const f of group) {
+              const claim = extractSection(f.content, "Claim") || "";
+              const source = f.frontmatter.sources ? `${f.frontmatter.sources} source(s)` : "no sources";
+              report.push(`#### ${f.frontmatter.id}: ${f.frontmatter.title}`);
+              report.push("");
+              report.push(`**Evidence:** ${f.frontmatter.evidence} | **Status:** ${f.frontmatter.status} | **Sources:** ${source}`);
+              report.push("");
+              if (claim) {
+                report.push(claim);
+                report.push("");
+              }
+            }
+          };
+
+          renderFindingGroup("HIGH", highFindings);
+          renderFindingGroup("MODERATE", modFindings);
+          renderFindingGroup("LOW", lowFindings);
+          renderFindingGroup("UNVERIFIED", unverifiedFindings);
+          sections.push(`All Findings (${findings.length})`);
+
+          // ── SECTION 4: ALL Candidates (full details) ──
+          if (candidates.length > 0) {
+            report.push("---");
+            report.push("");
+            report.push("## All Candidates");
+            report.push("");
+
+            for (const c of candidates) {
+              report.push(`### ${c.frontmatter.title}`);
+              report.push("");
+              report.push(`**Verdict:** ${c.frontmatter.verdict}`);
+              report.push("");
+
+              // "What It Is" section from candidate file
+              const whatItIs = extractSection(c.content, "What It Is");
+              if (whatItIs) {
+                report.push("**What It Is**");
+                report.push("");
+                report.push(whatItIs);
+                report.push("");
+              }
+
+              // Scoring details from the candidate file
+              const scoring = extractSection(c.content, "Scoring");
+              if (scoring) {
+                report.push("**Scoring**");
+                report.push("");
+                report.push(scoring);
+                report.push("");
+              }
+
+              // Total score
+              const totalMatch = c.content.match(/\*\*Total\*\*.*?\*\*(\d+)\*\*/);
+              if (totalMatch) {
+                report.push(`**Total Score: ${totalMatch[1]}**`);
+                report.push("");
+              }
+            }
+            sections.push(`All Candidates (${candidates.length})`);
+          }
+
+          // ── SECTION 5: Complete Scoring Matrix ──
+          if (matrixContent) {
+            report.push("---");
+            report.push("");
+            report.push("## Complete Scoring Matrix");
+            report.push("");
+            report.push(matrixContent);
+            report.push("");
+            sections.push("Complete Scoring Matrix");
+          }
+
+          // ── SECTION 6: Decision (full) ──
+          if (decisionContent) {
+            report.push("---");
+            report.push("");
+            report.push("## Decision");
+            report.push("");
+            const decisionText = extractSection(decisionContent, "Decision");
+            const rationaleText = extractSection(decisionContent, "Rationale");
+            if (decisionText) {
+              report.push(decisionText);
+              report.push("");
+            }
+            if (rationaleText) {
+              report.push("### Rationale");
+              report.push("");
+              report.push(rationaleText);
+              report.push("");
+            }
+            sections.push("Decision");
+          }
+
+          // ── SECTION 7: Playbook / How to Apply ──
+          if (matrixContent.includes("Playbook") || matrixContent.includes("playbook")) {
+            const playbookText = extractSection(matrixContent, "The Situational Playbook")
+              || extractSection(matrixContent, "Interpretation");
+            if (playbookText) {
+              report.push("---");
+              report.push("");
+              report.push("## How to Apply");
+              report.push("");
+              report.push(playbookText);
+              report.push("");
+              sections.push("How to Apply");
+            }
+          }
+
+          // ── SECTION 8: Design Rules ──
+          const rulesText = extractSection(matrixContent, "Design Rules (from behavioral science research)")
+            || extractSection(matrixContent, "Design Rules");
+          if (rulesText) {
+            report.push("---");
+            report.push("");
+            report.push("## Design Rules");
+            report.push("");
+            report.push(rulesText);
+            report.push("");
+            sections.push("Design Rules");
+          }
+
+          // ── SECTION 9: Methodology ──
+          report.push("---");
+          report.push("");
+          report.push("## Methodology");
+          report.push("");
+          report.push(`- **Project:** ${projectConfig.projectName}`);
+          report.push(`- **Phase:** ${projectConfig.phase}`);
+          report.push(`- **Created:** ${projectConfig.created}`);
+          report.push(`- **Findings:** ${findings.length} (${highFindings.length} HIGH, ${modFindings.length} MODERATE, ${lowFindings.length} LOW, ${unverifiedFindings.length} UNVERIFIED)`);
+          report.push(`- **Candidates:** ${candidates.length} evaluated`);
+          report.push(`- **Criteria:** ${criteria ? "Locked" : "Not defined"}`);
+          report.push(`- **Peer review:** ${hasPeerReview ? "Logged" : "Not logged"}`);
+          report.push("");
+
+          // Timeline
+          if (projectConfig.transitions.length > 0) {
+            report.push("### Timeline");
+            report.push("");
+            for (const t of projectConfig.transitions) {
+              report.push(`- ${t.date}: ${t.phase}${t.note ? ` — ${t.note}` : ""}`);
+            }
+            report.push("");
+          }
+
+          // Context
+          if (projectConfig.context) {
+            report.push("### Research Context");
+            report.push("");
+            report.push(projectConfig.context);
+            report.push("");
+          }
+
+          report.push("---");
+          report.push("");
+          report.push("*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*");
+          sections.push("Methodology");
+
+          // Write REPORT.md
+          const reportPath = path.join(root, "REPORT.md");
+          fs.writeFileSync(reportPath, report.join("\n") + "\n");
+
+          // Auto-generate PDF alongside REPORT.md
+          let pdfStatus = "";
+          try {
+            const renderScript = path.join(__dirname, "..", "src", "render-brief.py");
+            if (fs.existsSync(renderScript)) {
+              const { execFileSync } = require("child_process");
+              const pdfPath = path.join(root, "REPORT.pdf");
+              execFileSync("python3", [renderScript, reportPath, "--brand", "research", "-o", pdfPath], {
+                stdio: ["pipe", "pipe", "pipe"],
+                encoding: "utf-8",
+                timeout: 15000,
+              });
+              pdfStatus = `\nPDF: REPORT.pdf generated alongside REPORT.md`;
+            }
+          } catch (pdfErr: any) {
+            pdfStatus = `\nPDF: Could not generate (${pdfErr.message || "python3/reportlab not available"}). Run manually: research-md brief ${reportPath}`;
+          }
+
+          return { content: [{ type: "text", text: `Full research report generated: REPORT.md (${report.length} lines)\n\nSections: ${sections.join(" → ")}\n\nIncludes ALL ${findings.length} findings and ALL ${candidates.length} candidates (untruncated).${pdfStatus}` }] };
         }
 
         default:
