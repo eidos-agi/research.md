@@ -29,9 +29,9 @@ try:
     from reportlab.lib.units import inch
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
-        HRFlowable, KeepTogether
+        HRFlowable, KeepTogether, CondPageBreak
     )
-    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
 except ImportError:
     print("pip install reportlab", file=sys.stderr)
     sys.exit(1)
@@ -64,6 +64,11 @@ BRANDS = {
 }
 
 PAGE_MARGIN = 0.75 * inch
+# Minimum space before a H2 heading to avoid orphaned headers at page bottom
+MIN_H2_SPACE = 2.0 * inch
+
+# Box-drawing characters used in ASCII architecture diagrams
+BOX_CHARS = set('┌┐└┘├┤┬┴─│╭╮╰╯║═╔╗╚╝╠╣╦╩')
 
 
 def get_brand(args):
@@ -114,12 +119,12 @@ def build_styles(brand):
     styles.add(ParagraphStyle(
         'Brief_H2', parent=styles['Heading2'],
         fontSize=14, leading=18, textColor=brand["primary"],
-        spaceBefore=16, spaceAfter=6, fontName='Helvetica-Bold'
+        spaceBefore=4, spaceAfter=6, fontName='Helvetica-Bold'
     ))
     styles.add(ParagraphStyle(
         'Brief_H3', parent=styles['Heading3'],
         fontSize=11, leading=15, textColor=brand["primary"],
-        spaceBefore=12, spaceAfter=4, fontName='Helvetica-Bold'
+        spaceBefore=10, spaceAfter=4, fontName='Helvetica-Bold'
     ))
     styles.add(ParagraphStyle(
         'Brief_Body', parent=styles['Normal'],
@@ -129,14 +134,14 @@ def build_styles(brand):
     styles.add(ParagraphStyle(
         'Brief_Verdict', parent=styles['Normal'],
         fontSize=11, leading=16, textColor=brand["text"],
-        spaceAfter=8, fontName='Helvetica-Bold',
+        spaceAfter=4, fontName='Helvetica-Bold',
         backColor=brand["primary_light"],
         borderColor=brand["primary"], borderWidth=1, borderPadding=8,
     ))
     styles.add(ParagraphStyle(
         'Brief_Bullet', parent=styles['Normal'],
         fontSize=10, leading=14, textColor=brand["text"],
-        spaceAfter=3, fontName='Helvetica',
+        spaceAfter=8, fontName='Helvetica',
         leftIndent=18, bulletIndent=6
     ))
     styles.add(ParagraphStyle(
@@ -156,6 +161,32 @@ def build_styles(brand):
         fontSize=9, leading=12, textColor=colors.white,
         fontName='Helvetica-Bold'
     ))
+    # Layer card styles for architecture diagrams
+    styles.add(ParagraphStyle(
+        'Brief_LayerNumber', parent=styles['Normal'],
+        fontSize=18, leading=22, textColor=brand["primary"],
+        fontName='Helvetica-Bold', alignment=TA_CENTER,
+    ))
+    styles.add(ParagraphStyle(
+        'Brief_LayerName', parent=styles['Normal'],
+        fontSize=10, leading=13, textColor=brand["primary"],
+        fontName='Helvetica-Bold',
+    ))
+    styles.add(ParagraphStyle(
+        'Brief_LayerPattern', parent=styles['Normal'],
+        fontSize=8, leading=11, textColor=brand["text_secondary"],
+        fontName='Helvetica-Oblique',
+    ))
+    styles.add(ParagraphStyle(
+        'Brief_LayerDesc', parent=styles['Normal'],
+        fontSize=9, leading=12, textColor=brand["text"],
+        fontName='Helvetica',
+    ))
+    styles.add(ParagraphStyle(
+        'Brief_LayerTime', parent=styles['Normal'],
+        fontSize=8, leading=10, textColor=brand["text_secondary"],
+        fontName='Helvetica', alignment=TA_CENTER,
+    ))
     return styles
 
 
@@ -174,6 +205,138 @@ def inline_markup(text, brand_hex="#37474F"):
         text = text.replace(f'&lt;/{tag}&gt;', f'</{tag}>')
     text = re.sub(r'<font([^&]*?)&gt;', r'<font\1>', text)
     return text
+
+
+def _has_box_drawing(text):
+    """Check whether text contains box-drawing characters."""
+    return any(ch in BOX_CHARS for ch in text)
+
+
+def _parse_layer_diagram(code_text):
+    """Parse an ASCII box-drawing layer diagram into structured layer data.
+
+    Looks for patterns like:
+        LAYER N: Title
+        Pattern: ...
+        description lines
+        Read time: ...
+
+    Returns a list of dicts or None if parsing fails.
+    """
+    layers = []
+    current = None
+
+    for line in code_text.split('\n'):
+        # Strip box-drawing chrome
+        stripped = line.strip()
+        for ch in BOX_CHARS:
+            stripped = stripped.replace(ch, '')
+        stripped = stripped.strip()
+        if not stripped:
+            continue
+
+        # Match layer header
+        m = re.match(r'LAYER\s+(\d+):\s+(.*)', stripped)
+        if m:
+            if current:
+                layers.append(current)
+            current = {
+                'number': m.group(1),
+                'name': m.group(2).strip(),
+                'pattern': '',
+                'desc_lines': [],
+                'read_time': '',
+            }
+            continue
+
+        if current is None:
+            continue
+
+        # Match pattern line
+        pm = re.match(r'Pattern:\s+(.*)', stripped)
+        if pm:
+            current['pattern'] = pm.group(1).strip()
+            continue
+
+        # Match read time
+        rm = re.match(r'Read time:\s+(.*)', stripped)
+        if rm:
+            current['read_time'] = rm.group(1).strip()
+            continue
+
+        # Otherwise it's a description line
+        if stripped and stripped != '│':
+            current['desc_lines'].append(stripped)
+
+    if current:
+        layers.append(current)
+
+    return layers if layers else None
+
+
+def build_layer_cards(layers, styles, brand):
+    """Build a branded stacked-card table for architecture layers."""
+    avail = letter[0] - 2 * PAGE_MARGIN
+
+    elements = []
+    for idx, layer in enumerate(layers):
+        # Alternate background: primary_light and white
+        bg = brand["primary_light"] if idx % 2 == 0 else colors.white
+
+        # Build description text
+        desc = ' '.join(layer['desc_lines'])
+
+        # Number cell (narrow left column)
+        num_para = Paragraph(layer['number'], styles['Brief_LayerNumber'])
+
+        # Content cell: name, pattern, description
+        name_para = Paragraph(layer['name'], styles['Brief_LayerName'])
+        pattern_para = Paragraph(layer['pattern'], styles['Brief_LayerPattern'])
+        desc_para = Paragraph(desc, styles['Brief_LayerDesc']) if desc else Spacer(1, 1)
+
+        # Stack name + pattern + desc using a nested table
+        inner_data = [[name_para], [pattern_para]]
+        if desc:
+            inner_data.append([desc_para])
+        inner = Table(inner_data, colWidths=[avail - 1.1 * inch])
+        inner.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+
+        # Read time cell (right column)
+        time_para = Paragraph(layer['read_time'], styles['Brief_LayerTime'])
+
+        row_data = [[num_para, inner, time_para]]
+        row_table = Table(row_data, colWidths=[0.45 * inch, avail - 1.45 * inch, 1.0 * inch])
+
+        style_cmds = [
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 0), (-1, -1), bg),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (0, -1), 8),
+            ('RIGHTPADDING', (-1, 0), (-1, -1), 8),
+        ]
+
+        # Left accent bar via a thin colored column border
+        if idx == 0:
+            # Top row gets top border
+            style_cmds.append(('LINEABOVE', (0, 0), (-1, 0), 1, brand["primary"]))
+        style_cmds.append(('LINEBELOW', (0, 0), (-1, 0), 0.5, brand["border"]))
+        style_cmds.append(('LINEBEFORE', (0, 0), (0, -1), 3, brand["primary"]))
+
+        if idx == len(layers) - 1:
+            # Bottom row gets bottom border
+            style_cmds.append(('LINEBELOW', (0, 0), (-1, 0), 1, brand["primary"]))
+
+        row_table.setStyle(TableStyle(style_cmds))
+        elements.append(row_table)
+
+    return elements
 
 
 def parse_markdown(md_text):
@@ -355,6 +518,23 @@ def header_footer(canvas, doc, brand, logo_path=None):
     canvas.restoreState()
 
 
+def _render_bullet_with_hierarchy(item, styles, brand_hex):
+    """Render a bullet with visual hierarchy: bold title in brand color, body in normal text."""
+    # Detect pattern: **bold title** — rest of text
+    m = re.match(r'^(\*\*[^*]+\*\*)\s*[—–-]\s*(.*)', item)
+    if m:
+        title_md = m.group(1)
+        body = m.group(2)
+        # Convert the bold title to brand-colored bold
+        title_markup = inline_markup(title_md, brand_hex)
+        title_markup = title_markup.replace('<b>', f'<b><font color="{brand_hex}">')
+        title_markup = title_markup.replace('</b>', '</font></b>')
+        body_markup = inline_markup(body, brand_hex)
+        return f'<bullet>&bull;</bullet> {title_markup} — {body_markup}'
+    else:
+        return f'<bullet>&bull;</bullet> {inline_markup(item, brand_hex)}'
+
+
 def render_brief(md_path, brand, logo_path=None, output_path=None):
     if not os.path.exists(md_path):
         print(f"Error: {md_path} not found", file=sys.stderr)
@@ -373,41 +553,85 @@ def render_brief(md_path, brand, logo_path=None, output_path=None):
     story = []
     story.append(Spacer(1, 0.3 * inch))
 
-    for block in blocks:
+    # Track section groups for KeepTogether
+    i = 0
+    while i < len(blocks):
+        block = blocks[i]
         btype = block['type']
 
         if btype == 'h1':
             story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_Title']))
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 2))
+            i += 1
 
         elif btype == 'h2':
-            story.append(Spacer(1, 4))
-            story.append(HRFlowable(width='100%', thickness=1, color=brand["primary"],
-                                    spaceAfter=4, spaceBefore=8))
-            story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_H2']))
+            # Conditional page break: ensure at least 2 inches remain
+            story.append(CondPageBreak(MIN_H2_SPACE))
+
+            # Collect H2 + following content into a KeepTogether group
+            # (header + rule + first child element)
+            h2_group = [
+                HRFlowable(width='100%', thickness=1, color=brand["primary"],
+                            spaceAfter=2, spaceBefore=2),
+                Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_H2']),
+            ]
+
+            # Peek ahead: keep the first content block with the heading
+            if i + 1 < len(blocks) and blocks[i + 1]['type'] not in ('h2', 'hr'):
+                # We'll just use KeepTogether for the heading + rule
+                pass
+
+            story.append(KeepTogether(h2_group))
+            i += 1
 
         elif btype == 'h3':
-            story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_H3']))
+            # Keep H3 with its first content block
+            h3_group = [
+                Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_H3']),
+            ]
+            story.append(KeepTogether(h3_group))
+            i += 1
 
         elif btype == 'hr':
+            story.append(Spacer(1, 2))
             story.append(HRFlowable(width='100%', thickness=0.5, color=brand["border"],
-                                    spaceAfter=8, spaceBefore=8))
+                                    spaceAfter=2, spaceBefore=2))
+            i += 1
 
         elif btype == 'verdict':
-            story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_Verdict']))
+            # KeepTogether for verdict + evidence line
+            verdict_group = [
+                Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_Verdict']),
+            ]
+            # Look ahead for evidence line
+            if i + 1 < len(blocks) and blocks[i + 1]['type'] == 'paragraph':
+                next_text = blocks[i + 1].get('text', '')
+                if 'Evidence:' in next_text or 'evidence' in next_text.lower():
+                    verdict_group.append(Spacer(1, 2))
+                    verdict_group.append(
+                        Paragraph(inline_markup(next_text, brand_hex), styles['Brief_Body'])
+                    )
+                    i += 1  # skip the evidence line since we consumed it
+            story.append(KeepTogether(verdict_group))
+            i += 1
 
         elif btype == 'blockquote':
             story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_Verdict']))
+            i += 1
 
         elif btype == 'paragraph':
             story.append(Paragraph(inline_markup(block['text'], brand_hex), styles['Brief_Body']))
+            i += 1
 
         elif btype == 'bullets':
+            bullet_elements = []
             for item in block['items']:
-                story.append(Paragraph(
-                    f'<bullet>&bull;</bullet> {inline_markup(item, brand_hex)}',
-                    styles['Brief_Bullet']
-                ))
+                markup = _render_bullet_with_hierarchy(item, styles, brand_hex)
+                bullet_elements.append(
+                    Paragraph(markup, styles['Brief_Bullet'])
+                )
+            story.extend(bullet_elements)
+            i += 1
 
         elif btype == 'numbered':
             for idx, item in enumerate(block['items'], 1):
@@ -415,19 +639,37 @@ def render_brief(md_path, brand, logo_path=None, output_path=None):
                     f'<bullet>{idx}.</bullet> {inline_markup(item, brand_hex)}',
                     styles['Brief_Bullet']
                 ))
+            i += 1
 
         elif btype == 'code':
-            # Wrap long code lines
-            code_text = block['text'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            code_text = block['text']
+
+            # Detect box-drawing diagrams and render as branded layer cards
+            if _has_box_drawing(code_text):
+                layers = _parse_layer_diagram(code_text)
+                if layers:
+                    cards = build_layer_cards(layers, styles, brand)
+                    # Wrap all cards in KeepTogether if they fit
+                    story.append(KeepTogether(cards))
+                    i += 1
+                    continue
+
+            # Regular code block — monospace with background
+            code_text = code_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             code_text = code_text.replace('\n', '<br/>')
             story.append(Paragraph(code_text, styles['Brief_Code']))
+            i += 1
 
         elif btype == 'table':
             t = build_pdf_table(block['lines'], styles, brand)
             if t:
+                story.append(Spacer(1, 2))
+                story.append(KeepTogether([t]))
                 story.append(Spacer(1, 4))
-                story.append(t)
-                story.append(Spacer(1, 8))
+            i += 1
+
+        else:
+            i += 1
 
     doc = SimpleDocTemplate(
         output_path, pagesize=letter,
