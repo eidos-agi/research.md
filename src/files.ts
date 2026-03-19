@@ -60,7 +60,7 @@ export function listFindings(projectRoot: string): ParsedFile<FindingFrontmatter
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith(".md"))
+    .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
     .sort()
     .map((f) => readMarkdown<FindingFrontmatter>(path.join(dir, f)));
 }
@@ -85,7 +85,7 @@ export function listCandidates(projectRoot: string): ParsedFile<CandidateFrontma
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith(".md"))
+    .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
     .sort()
     .map((f) => readMarkdown<CandidateFrontmatter>(path.join(dir, f)));
 }
