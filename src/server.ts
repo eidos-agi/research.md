@@ -56,6 +56,7 @@ import {
   RESOURCE_DEFINITIONS,
   INIT_REQUIRED_RESOURCE,
 } from "./resources";
+import { checkIntegrity } from "./integrity";
 
 function today(): string {
   return new Date().toISOString().split("T")[0];
@@ -429,6 +430,18 @@ export function createServer(): Server {
             ...projectConfig.transitions.map((t) => `  ${t.date} → ${t.phase}${t.note ? ` (${t.note})` : ""}`),
           ];
 
+          // Integrity checks
+          const issues = checkIntegrity(root, projectConfig);
+          if (issues.length > 0) {
+            lines.push("", "**Integrity issues:**");
+            for (const issue of issues) {
+              const icon = issue.severity === "error" ? "ERROR" : "WARNING";
+              lines.push(`  [${icon}] ${issue.message}`);
+            }
+          } else {
+            lines.push("", "**Integrity:** All checks passed.");
+          }
+
           return { content: [{ type: "text", text: lines.join("\n") }] };
         }
 
@@ -684,10 +697,62 @@ export function createServer(): Server {
           const rationale = args?.rationale as string;
           const adrRef = (args?.adr_reference as string) || "";
 
-          const decisionContent = [
+          // Find existing decision file(s) in decisions/ and update them
+          const decisionsDir = path.join(root, "decisions");
+          let updatedFiles: string[] = [];
+
+          if (fs.existsSync(decisionsDir)) {
+            const decisionFiles = fs.readdirSync(decisionsDir).filter(
+              (f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md"
+            );
+
+            for (const df of decisionFiles) {
+              const fp = path.join(decisionsDir, df);
+              let content = fs.readFileSync(fp, "utf-8");
+              let changed = false;
+
+              // Update status line
+              if (content.includes("Under Research") || content.includes("Status: Draft")) {
+                content = content.replace(/Under Research/g, "Decided");
+                content = content.replace(/Status: Draft/g, "Status: Decided");
+                changed = true;
+              }
+
+              // Fill in Decision section if it has placeholder
+              if (content.includes("_To be written after scoring matrix is complete._") ||
+                  content.includes("_To be written after decision is made._")) {
+                content = content.replace(
+                  /## Decision\n\n_To be written[^_]*_/,
+                  `## Decision\n\n${decision}${adrRef ? `\n\nSee ${adrRef} for the full decision record.` : ""}`
+                );
+                changed = true;
+              }
+
+              // Fill in Consequences section if it has placeholder
+              if (content.includes("_To be written after decision is made._")) {
+                content = content.replace(
+                  /## Consequences\n\n_To be written[^_]*_/,
+                  `## Consequences\n\n${rationale}`
+                );
+                changed = true;
+              }
+
+              // Update date
+              content = content.replace(/\*\*Date:\*\*\s*_TBD_/, `**Date:** ${today()}`);
+
+              if (changed) {
+                fs.writeFileSync(fp, content);
+                updatedFiles.push(df);
+              }
+            }
+          }
+
+          // Also write DECISION.md as canonical summary
+          const summaryContent = [
             "# Decision",
             "",
             `**Date:** ${today()}`,
+            `**Status:** Decided`,
             ...(adrRef ? [`**ADR:** ${adrRef}`] : []),
             "",
             "## Decision",
@@ -700,10 +765,18 @@ export function createServer(): Server {
           ].join("\n");
 
           const decisionPath = path.join(root, "DECISION.md");
-          fs.writeFileSync(decisionPath, decisionContent + "\n");
+          fs.writeFileSync(decisionPath, summaryContent + "\n");
+
           advancePhase(root, "decided", decision.substring(0, 100));
 
-          return { content: [{ type: "text", text: `Decision recorded. Phase → decided\n\n${decision}` }] };
+          const response = [`Decision recorded. Phase → decided`, ""];
+          if (updatedFiles.length > 0) {
+            response.push(`Updated existing decision files: ${updatedFiles.join(", ")}`);
+          }
+          response.push(`Wrote DECISION.md`);
+          response.push("", decision);
+
+          return { content: [{ type: "text", text: response.join("\n") }] };
         }
 
         case "project_supersede": {
