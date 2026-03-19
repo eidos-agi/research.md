@@ -209,7 +209,7 @@ def render_brief(md_path, brand, output_path=None):
     def build(story):
         # Branded header
         story.append(BrandHeader(brand, title, f"Generated {__import__('datetime').date.today()}"))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 20))
 
         i = 0
         while i < len(blocks):
@@ -227,7 +227,7 @@ def render_brief(md_path, brand, output_path=None):
                 # to prevent orphaned headings (e.g. "Design Rules" + intro + table)
                 h2_flowables = [
                     HRFlowable(width='100%', thickness=1.5,
-                               color=brand.primary, spaceAfter=2, spaceBefore=2),
+                               color=brand.primary, spaceAfter=6, spaceBefore=2),
                     Paragraph(inline_markup(block['text'], brand), styles['h2']),
                 ]
                 # Peek ahead: paragraph then table?
@@ -252,7 +252,7 @@ def render_brief(md_path, brand, output_path=None):
                         t = tbl(brand, header_row, body_rows, [col_w] * num_cols)
                         h2_flowables.append(t)
                     story.append(KeepTogether(h2_flowables))
-                    story.append(Spacer(1, 6))
+                    story.append(Spacer(1, 10))
                     i += 3  # skip h2 + paragraph + table
                 else:
                     story.extend(h2_flowables)
@@ -268,7 +268,7 @@ def render_brief(md_path, brand, output_path=None):
 
             elif btype == 'verdict':
                 story.append(AccentBox(brand, inline_markup(block['text'], brand), bold=True, size=10))
-                story.append(Spacer(1, 4))
+                story.append(Spacer(1, 8))
                 i += 1
 
             elif btype == 'evidence':
@@ -296,7 +296,7 @@ def render_brief(md_path, brand, output_path=None):
                     story.append(StatCard(brand, stats))
                 else:
                     story.append(Paragraph(inline_markup(raw, brand), styles['meta']))
-                story.append(Spacer(1, 6))
+                story.append(Spacer(1, 14))
                 i += 1
 
             elif btype == 'blockquote':
@@ -330,7 +330,7 @@ def render_brief(md_path, brand, output_path=None):
                         story.append(AccentBox(brand, markup, bold=True, size=9))
                         if body_text:
                             story.append(Paragraph(inline_markup(body_text, brand), styles['body']))
-                        story.append(Spacer(1, 3))
+                        story.append(Spacer(1, 10))
                     else:
                         story.append(Paragraph(
                             f'<bullet>&bull;</bullet> {inline_markup(item, brand)}',
@@ -363,7 +363,7 @@ def render_brief(md_path, brand, output_path=None):
                                 read_time=layer['read_time'],
                                 is_even=(idx % 2 == 0),
                             ))
-                            cards.append(Spacer(1, 2))
+                            cards.append(Spacer(1, 4))
                         story.extend(cards)
                         i += 1
                         continue
@@ -386,8 +386,9 @@ def render_brief(md_path, brand, output_path=None):
                              for c in row] for row in rows_data[1:]]
                     col_w = USABLE / num_cols
                     t = tbl(brand, header, body, [col_w] * num_cols)
+                    story.append(Spacer(1, 8))
                     story.append(KeepTogether([t]))
-                    story.append(Spacer(1, 6))
+                    story.append(Spacer(1, 10))
                 i += 1
 
             else:

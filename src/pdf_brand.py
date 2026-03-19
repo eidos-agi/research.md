@@ -28,7 +28,7 @@ from reportlab.platypus.flowables import Flowable
 
 # ── Page Layout ──────────────────────────────────────────────────────
 W, H = letter
-MARGIN = 0.5 * inch
+MARGIN = 0.6 * inch
 USABLE = W - 2 * MARGIN
 
 
@@ -110,14 +110,14 @@ class Brand:
         """Build a dict of branded ParagraphStyles."""
         return {
             "body": ParagraphStyle("body", fontName="Helvetica", fontSize=9,
-                                   leading=12, textColor=self.dark),
+                                   leading=13, textColor=self.dark),
             "body_bold": ParagraphStyle("body_bold", fontName="Helvetica-Bold",
                                         fontSize=9, leading=12, textColor=self.dark),
             "h1": ParagraphStyle("h1", fontName="Helvetica-Bold", fontSize=14,
                                  leading=18, textColor=self.primary, spaceAfter=4),
             "h2": ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=11,
                                  leading=14, textColor=self.accent,
-                                 spaceBefore=10, spaceAfter=4),
+                                 spaceBefore=14, spaceAfter=4),
             "h3": ParagraphStyle("h3", fontName="Helvetica-Bold", fontSize=9.5,
                                  leading=12, textColor=self.primary,
                                  spaceBefore=6, spaceAfter=2),
@@ -329,7 +329,7 @@ def hr(brand=None):
     """Thin horizontal rule."""
     color = brand.grid if brand else HexColor("#D0D0D0")
     return HRFlowable(width="100%", thickness=0.5, color=color,
-                      spaceBefore=6, spaceAfter=6)
+                      spaceBefore=6, spaceAfter=8)
 
 
 def make_footer(brand):
