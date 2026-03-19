@@ -269,7 +269,9 @@ def render_brief(md_path, brand, output_path=None):
                 i += 1
 
             elif btype == 'hr':
-                story.append(hr(brand))
+                # HR rules in Connection Forge reports mark layer boundaries — page break
+                from reportlab.platypus import PageBreak
+                story.append(PageBreak())
                 i += 1
 
             elif btype == 'verdict':
