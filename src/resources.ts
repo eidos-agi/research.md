@@ -9,9 +9,13 @@ This directory does not have a \`research-md.json\` config file.
 
 ## Quick Start
 
-Run the \`init\` tool to set up a research project:
-- Creates \`findings/\`, \`candidates/\`, \`evaluations/\` directories
-- Writes \`research-md.json\` config
+1. Run the \`init\` tool to set up a research project:
+   - Creates \`findings/\`, \`candidates/\`, \`evaluations/\` directories
+   - Writes \`research-md.json\` config with a unique GUID
+
+2. Register the project with \`project_set\` (pass the directory path):
+   - Returns the project's GUID (\`research_id\`)
+   - You must pass this \`research_id\` on every subsequent tool call
 
 Or from the CLI:
 \`\`\`bash
@@ -65,8 +69,14 @@ research.md is an MCP server that enforces structured research workflows through
 - \`peer_review_log\` — log reviewer + findings
 
 ### Project
+- \`project_set\` — register a project path, returns its GUID
+- \`project_get\` — list all registered projects and their GUIDs
 - \`init\` — initialize project structure
 - \`status\` — project health summary
+
+## research_id (GUID)
+
+Every tool call (except \`project_set\`, \`project_get\`, and \`init\`) requires a \`research_id\` parameter — the GUID returned by \`project_set\`. This is an in-memory mapping from GUID → filesystem path; it does not persist across MCP server restarts. Re-register with \`project_set\` after restart.
 
 ## Resources
 

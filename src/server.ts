@@ -221,6 +221,21 @@ export function createServer(): Server {
         },
       },
       {
+        name: "candidate_update",
+        description: "Update a candidate's verdict and/or description.",
+        inputSchema: {
+          type: "object",
+          required: ["research_id", "slug"],
+          properties: {
+            ...RID,
+            slug: { type: "string", description: "Candidate slug (filename without .md)" },
+            verdict: { type: "string", enum: ["provisional", "recommended", "eliminated"] },
+            description: { type: "string", description: "Replace the 'What It Is' section content" },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
         name: "candidate_add_claim",
         description: "Add a binary testable claim to a candidate's validation checklist.",
         inputSchema: {
@@ -448,6 +463,31 @@ export function createServer(): Server {
           if (candidates.length === 0) return { content: [{ type: "text", text: "No candidates yet." }] };
           const rows = candidates.map((c) => `${c.frontmatter.verdict.padEnd(12)} | ${c.frontmatter.title}`);
           return { content: [{ type: "text", text: ["Verdict       | Title", "------------- | -----", ...rows].join("\n") }] };
+        }
+
+        case "candidate_update": {
+          const { projectRoot: root } = getProject(args?.research_id);
+          const slug = args?.slug as string;
+          const fp = candidatePath(root, slug);
+          if (!fs.existsSync(fp)) throw new ResearchNotFoundError("Candidate", slug);
+
+          const parsed = readMarkdown<CandidateFrontmatter>(fp);
+          const updated: CandidateFrontmatter = { ...parsed.frontmatter };
+          if (args?.verdict) updated.verdict = args.verdict as CandidateFrontmatter["verdict"];
+
+          let content = parsed.content;
+          if (args?.description) {
+            content = content.replace(
+              /(## What It Is\n\n)[\s\S]*?\n\n(## )/,
+              `$1${args.description}\n\n$2`
+            );
+          }
+
+          writeMarkdown(fp, updated, content);
+          const changes: string[] = [];
+          if (args?.verdict) changes.push(`verdict → ${args.verdict}`);
+          if (args?.description) changes.push("description updated");
+          return { content: [{ type: "text", text: `Candidate '${slug}' updated: ${changes.join(", ")}.` }] };
         }
 
         case "candidate_add_claim": {
