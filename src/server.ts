@@ -48,6 +48,7 @@ import {
   FindingFrontmatter,
   CandidateFrontmatter,
   DecisionCriteriaFrontmatter,
+  extractSection,
 } from "./files";
 import { runScoringGates } from "./gates";
 import {
@@ -345,6 +346,19 @@ export function createServer(): Server {
           properties: {
             ...RID,
             superseded_by: { type: "string", minLength: 1, description: "What supersedes this (ADR reference or new project)" },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "research_brief",
+        description: "Generate a layered research brief from a completed (decided) project. Produces a 7-layer document: one-liner, key findings, scoring matrix summary, decision, situational playbook, evidence summary, and methodology. Designed for sharing with stakeholders who weren't in the room.",
+        inputSchema: {
+          type: "object",
+          required: ["research_id"],
+          properties: {
+            ...RID,
+            audience: { type: "string", description: "Who will read this brief (e.g., 'CEO', 'engineering team', 'new hire'). Affects which layers are emphasized." },
           },
           additionalProperties: false,
         },
@@ -799,6 +813,193 @@ export function createServer(): Server {
           advancePhase(root, "superseded", `Superseded by ${supersededBy}`);
 
           return { content: [{ type: "text", text: `Project marked as superseded by ${supersededBy}. Phase → superseded` }] };
+        }
+
+        case "research_brief": {
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
+          const audience = (args?.audience as string) || "general";
+          const findings = listFindings(root);
+          const candidates = listCandidates(root);
+          const criteria = loadDecisionCriteria(root);
+          const hasPeerReview = peerReviewExists(root);
+
+          // Read DECISION.md if it exists
+          const decisionPath = path.join(root, "DECISION.md");
+          const decisionContent = fs.existsSync(decisionPath)
+            ? fs.readFileSync(decisionPath, "utf-8")
+            : "";
+
+          // Read scoring matrix if it exists
+          const matrixPath = scoringMatrixPath(root);
+          const matrixContent = fs.existsSync(matrixPath)
+            ? fs.readFileSync(matrixPath, "utf-8")
+            : "";
+
+          // Count evidence grades
+          const highFindings = findings.filter(f => f.frontmatter.evidence === "HIGH");
+          const modFindings = findings.filter(f => f.frontmatter.evidence === "MODERATE");
+
+          // Extract candidate scores from their content
+          const candidateScores: Array<{ title: string; total: number; verdict: string }> = [];
+          for (const c of candidates) {
+            const totalMatch = c.content.match(/\*\*Total\*\*.*?\*\*(\d+)\*\*/);
+            const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
+            candidateScores.push({ title: c.frontmatter.title, total, verdict: c.frontmatter.verdict });
+          }
+          candidateScores.sort((a, b) => b.total - a.total);
+
+          const brief: string[] = [];
+
+          // ── LAYER 1: One-liner (BLUF) ──
+          brief.push(`# Research Brief: ${projectConfig.projectName}`);
+          brief.push("");
+          brief.push(`*Generated ${today()} by research.md*`);
+          brief.push("");
+
+          if (projectConfig.question) {
+            brief.push(`> **Question:** ${projectConfig.question}`);
+            brief.push("");
+          }
+
+          // One-liner verdict
+          if (decisionContent) {
+            const decisionLines = decisionContent.split("\n");
+            const decisionStatement = decisionLines.find(l => l.startsWith("## Decision"));
+            const decisionIdx = decisionLines.indexOf(decisionStatement || "");
+            if (decisionIdx >= 0) {
+              // Get the paragraph after "## Decision"
+              for (let i = decisionIdx + 1; i < decisionLines.length; i++) {
+                const line = decisionLines[i].trim();
+                if (line && !line.startsWith("#") && !line.startsWith("*")) {
+                  brief.push(`**Verdict:** ${line}`);
+                  brief.push("");
+                  break;
+                }
+              }
+            }
+          }
+
+          brief.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"}`);
+          brief.push("");
+
+          // ── LAYER 2: Key Findings ──
+          brief.push("---");
+          brief.push("");
+          brief.push("## Key Findings");
+          brief.push("");
+
+          // Show HIGH findings first, then MODERATE
+          for (const f of highFindings.slice(0, 8)) {
+            brief.push(`- **${f.frontmatter.title}** — ${extractSection(f.content, "Claim").split("\n")[0] || ""}`);
+          }
+          if (highFindings.length > 8) {
+            brief.push(`- *...and ${highFindings.length - 8} more HIGH-evidence findings*`);
+          }
+          if (modFindings.length > 0) {
+            brief.push(`- *Plus ${modFindings.length} MODERATE-evidence findings (see full report)*`);
+          }
+          brief.push("");
+
+          // ── LAYER 3: Scoring Summary ──
+          if (candidateScores.length > 0) {
+            brief.push("---");
+            brief.push("");
+            brief.push("## Candidates Evaluated");
+            brief.push("");
+            brief.push("| Rank | Candidate | Score | Verdict |");
+            brief.push("|------|-----------|-------|---------|");
+            for (let i = 0; i < candidateScores.length; i++) {
+              const c = candidateScores[i];
+              brief.push(`| ${i + 1} | ${c.title} | ${c.total} | ${c.verdict} |`);
+            }
+            brief.push("");
+          }
+
+          // ── LAYER 4: Decision ──
+          if (decisionContent) {
+            brief.push("---");
+            brief.push("");
+            brief.push("## Decision");
+            brief.push("");
+            // Extract the Decision and Rationale sections
+            const decisionText = extractSection(decisionContent, "Decision");
+            const rationaleText = extractSection(decisionContent, "Rationale");
+            if (decisionText) brief.push(decisionText);
+            if (rationaleText) {
+              brief.push("");
+              brief.push("**Rationale:** " + rationaleText.split("\n")[0]);
+            }
+            brief.push("");
+          }
+
+          // ── LAYER 5: Situational Playbook (if scoring matrix has one) ──
+          if (matrixContent.includes("Playbook") || matrixContent.includes("playbook")) {
+            brief.push("---");
+            brief.push("");
+            // Extract everything from "Playbook" or "Interpretation" heading onward
+            const playbookText = extractSection(matrixContent, "The Situational Playbook")
+              || extractSection(matrixContent, "Interpretation");
+            if (playbookText) {
+              brief.push("## How to Apply");
+              brief.push("");
+              brief.push(playbookText);
+              brief.push("");
+            }
+          }
+
+          // ── LAYER 6: Design Rules (if they exist in matrix) ──
+          const rulesText = extractSection(matrixContent, "Design Rules (from behavioral science research)")
+            || extractSection(matrixContent, "Design Rules");
+          if (rulesText) {
+            brief.push("---");
+            brief.push("");
+            brief.push("## Design Rules");
+            brief.push("");
+            brief.push(rulesText);
+            brief.push("");
+          }
+
+          // ── LAYER 7: Methodology ──
+          brief.push("---");
+          brief.push("");
+          brief.push("## Methodology");
+          brief.push("");
+          brief.push(`- **Project:** ${projectConfig.projectName}`);
+          brief.push(`- **Phase:** ${projectConfig.phase}`);
+          brief.push(`- **Created:** ${projectConfig.created}`);
+          brief.push(`- **Findings:** ${findings.length} (${highFindings.length} HIGH, ${modFindings.length} MODERATE)`);
+          brief.push(`- **Candidates:** ${candidates.length} evaluated`);
+          brief.push(`- **Criteria:** ${criteria ? "Locked" : "Not defined"}`);
+          brief.push(`- **Peer review:** ${hasPeerReview ? "Logged" : "Not logged"}`);
+          brief.push("");
+
+          // Timeline
+          if (projectConfig.transitions.length > 0) {
+            brief.push("### Timeline");
+            brief.push("");
+            for (const t of projectConfig.transitions) {
+              brief.push(`- ${t.date}: ${t.phase}${t.note ? ` — ${t.note}` : ""}`);
+            }
+            brief.push("");
+          }
+
+          // Context (if exists)
+          if (projectConfig.context) {
+            brief.push("### Research Context");
+            brief.push("");
+            brief.push(projectConfig.context);
+            brief.push("");
+          }
+
+          brief.push("---");
+          brief.push("");
+          brief.push("*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*");
+
+          // Write to file
+          const briefPath = path.join(root, "BRIEF.md");
+          fs.writeFileSync(briefPath, brief.join("\n") + "\n");
+
+          return { content: [{ type: "text", text: `Research brief generated: BRIEF.md (${brief.length} lines)\n\n7 layers: One-liner → Key Findings → Candidates → Decision → Playbook → Design Rules → Methodology\n\nAudience: ${audience}` }] };
         }
 
         default:
