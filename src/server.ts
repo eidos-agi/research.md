@@ -19,7 +19,11 @@ import {
   registerProject,
   lookupGuid,
   listRegistered,
+  advancePhase,
+  requirePhase,
   ResolvedProject,
+  ProjectPhase,
+  PHASE_ORDER,
 } from "./config";
 import { sanitizeSlug } from "./security";
 import {
@@ -301,7 +305,7 @@ export function createServer(): Server {
       },
       {
         name: "peer_review_log",
-        description: "Log a peer review. Required before scoring.",
+        description: "Log a peer review. Required before scoring. Advances project to 'reviewed' phase.",
         inputSchema: {
           type: "object",
           required: ["research_id", "reviewer", "findings"],
@@ -310,6 +314,34 @@ export function createServer(): Server {
             reviewer: { type: "string", minLength: 1 },
             findings: { type: "array", items: { type: "string" }, minItems: 1 },
             notes: { type: "string" },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "project_decide",
+        description: "Record a decision. Advances project to 'decided' phase. Requires 'scored' phase or later.",
+        inputSchema: {
+          type: "object",
+          required: ["research_id", "decision", "rationale"],
+          properties: {
+            ...RID,
+            decision: { type: "string", minLength: 1, description: "The decision statement" },
+            rationale: { type: "string", minLength: 1, description: "Why this decision was made" },
+            adr_reference: { type: "string", description: "Reference to the ADR documenting this decision (e.g. ADR-2026-28)" },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "project_supersede",
+        description: "Mark a decided project as superseded by a later decision.",
+        inputSchema: {
+          type: "object",
+          required: ["research_id", "superseded_by"],
+          properties: {
+            ...RID,
+            superseded_by: { type: "string", minLength: 1, description: "What supersedes this (ADR reference or new project)" },
           },
           additionalProperties: false,
         },
@@ -372,7 +404,7 @@ export function createServer(): Server {
         }
 
         case "status": {
-          const { projectRoot: root } = getProject(args?.research_id);
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
           const findings = listFindings(root);
           const candidates = listCandidates(root);
           const criteria = loadDecisionCriteria(root);
@@ -380,8 +412,9 @@ export function createServer(): Server {
           const tbdCount = candidates.reduce((acc, c) => acc + (c.content.match(/_TBD_/g)?.length || 0), 0);
 
           const lines = [
-            "## Research Project Status",
+            `## ${projectConfig.projectName} — Research Status`,
             "",
+            `**Phase:** ${projectConfig.phase}`,
             `**Criteria locked:** ${criteria?.frontmatter.locked ? `Yes (${criteria.frontmatter.locked_date})` : "No"}`,
             `**Peer review logged:** ${hasPeerReview ? "Yes" : "No"}`,
             `**TBD items remaining:** ${tbdCount}`,
@@ -391,6 +424,9 @@ export function createServer(): Server {
             "",
             `**Candidates (${candidates.length}):**`,
             ...candidates.map((c) => `  ${c.frontmatter.title} — ${c.frontmatter.verdict}`),
+            "",
+            "**Phase history:**",
+            ...projectConfig.transitions.map((t) => `  ${t.date} → ${t.phase}${t.note ? ` (${t.note})` : ""}`),
           ];
 
           return { content: [{ type: "text", text: lines.join("\n") }] };
@@ -543,11 +579,14 @@ export function createServer(): Server {
           }
 
           writeMarkdown(criteriaFile, { locked: true, locked_date: today() }, parsed.content);
-          return { content: [{ type: "text", text: `Decision criteria locked on ${today()}. Weights are now frozen.` }] };
+          advancePhase(root, "locked", "Criteria weights frozen");
+          return { content: [{ type: "text", text: `Decision criteria locked on ${today()}. Weights are now frozen. Phase → locked` }] };
         }
 
         case "candidate_score": {
-          const { projectRoot: root } = getProject(args?.research_id);
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
+          requirePhase(projectConfig, "reviewed", "score candidates");
+
           const slug = args?.slug as string;
           const scores = args?.scores as Record<string, number>;
           const notes = (args?.notes as string) || "";
@@ -563,6 +602,9 @@ export function createServer(): Server {
 
           const newContent = parsed.content.replace(/## Scoring[\s\S]*/, `## Scoring${scoringSection}`);
           writeMarkdown(fp, parsed.frontmatter, newContent);
+
+          // Advance to scored phase (idempotent if already scored)
+          try { advancePhase(root, "scored", `Scored candidate: ${slug}`); } catch { /* already at scored or later */ }
 
           return { content: [{ type: "text", text: `Scored '${slug}'. Total: ${total}\n${Object.entries(scores).map(([k, v]) => `  ${k}: ${v}`).join("\n")}` }] };
         }
@@ -629,8 +671,49 @@ export function createServer(): Server {
 
           fs.mkdirSync(path.dirname(fp), { recursive: true });
           fs.writeFileSync(fp, content + "\n");
+          advancePhase(root, "reviewed", `Peer review by ${reviewer}`);
 
-          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked.` }] };
+          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked. Phase → reviewed` }] };
+        }
+
+        case "project_decide": {
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
+          requirePhase(projectConfig, "scored", "record a decision");
+
+          const decision = args?.decision as string;
+          const rationale = args?.rationale as string;
+          const adrRef = (args?.adr_reference as string) || "";
+
+          const decisionContent = [
+            "# Decision",
+            "",
+            `**Date:** ${today()}`,
+            ...(adrRef ? [`**ADR:** ${adrRef}`] : []),
+            "",
+            "## Decision",
+            "",
+            decision,
+            "",
+            "## Rationale",
+            "",
+            rationale,
+          ].join("\n");
+
+          const decisionPath = path.join(root, "DECISION.md");
+          fs.writeFileSync(decisionPath, decisionContent + "\n");
+          advancePhase(root, "decided", decision.substring(0, 100));
+
+          return { content: [{ type: "text", text: `Decision recorded. Phase → decided\n\n${decision}` }] };
+        }
+
+        case "project_supersede": {
+          const { projectRoot: root, config: projectConfig } = getProject(args?.research_id);
+          requirePhase(projectConfig, "decided", "supersede a decision");
+
+          const supersededBy = args?.superseded_by as string;
+          advancePhase(root, "superseded", `Superseded by ${supersededBy}`);
+
+          return { content: [{ type: "text", text: `Project marked as superseded by ${supersededBy}. Phase → superseded` }] };
         }
 
         default:

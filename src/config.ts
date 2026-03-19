@@ -4,11 +4,50 @@ import * as crypto from "crypto";
 
 // ── Config types ─────────────────────────────────────────────────────────────
 
+/**
+ * Research project lifecycle phases.
+ * Each phase is a gate — tools enforce that you can't skip ahead.
+ *
+ * research    → Gathering findings, creating candidates. Starting state.
+ * criteria    → Decision criteria defined. Weights can still change.
+ * locked      → Criteria weights frozen. No more weight changes.
+ * reviewed    → Peer review logged. Scoring is unblocked.
+ * scored      → All candidates scored. Matrix can be generated.
+ * decided     → Decision made. Project is complete.
+ * superseded  → Decision was overridden by a later project or ADR.
+ */
+export type ProjectPhase =
+  | "research"
+  | "criteria"
+  | "locked"
+  | "reviewed"
+  | "scored"
+  | "decided"
+  | "superseded";
+
+export const PHASE_ORDER: ProjectPhase[] = [
+  "research",
+  "criteria",
+  "locked",
+  "reviewed",
+  "scored",
+  "decided",
+  "superseded",
+];
+
+export interface PhaseTransition {
+  phase: ProjectPhase;
+  date: string;
+  note?: string;
+}
+
 export interface ProjectConfig {
   id: string;
   version: string;
   projectName: string;
   created: string;
+  phase: ProjectPhase;
+  transitions: PhaseTransition[];
 }
 
 export interface RootConfig {
@@ -141,6 +180,67 @@ export function saveConfig(dir: string, config: ResearchConfig): void {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
+// ── Phase transitions ────────────────────────────────────────────────────────
+
+/**
+ * Check if a phase transition is valid.
+ * Phases must advance forward (or to superseded from any state).
+ */
+export function canTransition(current: ProjectPhase, target: ProjectPhase): boolean {
+  if (target === "superseded") return true; // Can supersede from any phase
+  const currentIdx = PHASE_ORDER.indexOf(current);
+  const targetIdx = PHASE_ORDER.indexOf(target);
+  return targetIdx > currentIdx && targetIdx < PHASE_ORDER.indexOf("superseded");
+}
+
+/**
+ * Advance a project's phase. Writes to config file.
+ * Returns the updated config, or throws if the transition is invalid.
+ */
+export function advancePhase(
+  projectPath: string,
+  target: ProjectPhase,
+  note?: string
+): ProjectConfig {
+  const config = loadConfig(projectPath);
+  if (!config || !isProjectConfig(config)) {
+    throw new Error(`No project config at ${projectPath}`);
+  }
+
+  if (config.phase === target) {
+    return config; // Already at this phase, no-op
+  }
+
+  if (!canTransition(config.phase, target)) {
+    const currentIdx = PHASE_ORDER.indexOf(config.phase);
+    const nextPhase = PHASE_ORDER[currentIdx + 1];
+    throw new Error(
+      `Cannot transition from '${config.phase}' to '${target}'. ` +
+      `Next valid phase is '${nextPhase}'.`
+    );
+  }
+
+  const now = new Date().toISOString().split("T")[0];
+  config.phase = target;
+  config.transitions.push({ phase: target, date: now, ...(note ? { note } : {}) });
+  saveConfig(projectPath, config);
+  return config;
+}
+
+/**
+ * Assert a project is at or past a given phase. Throws if not.
+ */
+export function requirePhase(config: ProjectConfig, minPhase: ProjectPhase, action: string): void {
+  const currentIdx = PHASE_ORDER.indexOf(config.phase);
+  const requiredIdx = PHASE_ORDER.indexOf(minPhase);
+  if (currentIdx < requiredIdx) {
+    throw new Error(
+      `Cannot ${action} — project is in '${config.phase}' phase. ` +
+      `Requires '${minPhase}' or later.`
+    );
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 export function initProject(targetDir: string, projectName?: string): void {
@@ -153,11 +253,14 @@ export function initProject(targetDir: string, projectName?: string): void {
     }
   }
 
+  const now = new Date().toISOString().split("T")[0];
   const config: ProjectConfig = {
     id: crypto.randomUUID(),
     version: "0.1.0",
     projectName: projectName || path.basename(targetDir),
-    created: new Date().toISOString().split("T")[0],
+    created: now,
+    phase: "research",
+    transitions: [{ phase: "research", date: now }],
   };
 
   saveConfig(targetDir, config);
