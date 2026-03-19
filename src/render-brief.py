@@ -184,75 +184,26 @@ def parse_layer_diagram(code_text):
 
 
 def validate_design_rules(md_text, md_path):
-    """Check markdown against REPORT-DESIGN.md rules. Prints warnings, never blocks."""
+    """Check markdown against REPORT-DESIGN.md rules.
+
+    Only checks BINARY rules — things that are objectively right or wrong.
+    Judgment calls (heading quality, table placement, paragraph structure)
+    belong in the design review guide, not in automated checks.
+
+    Prints warnings, never blocks.
+    """
     warnings = []
     lines = md_text.split('\n')
 
-    # Rule: Never say "production-ready"
+    # Rule: Never say "production-ready" — binary, from REPORT-DESIGN.md "What To Never Do"
     for i, line in enumerate(lines, 1):
         if 'production-ready' in line.lower():
             warnings.append(f"  Line {i}: Contains 'production-ready' — use 'specification complete' framing")
 
-    # Rule: Headings should be sentences (McKinsey action titles)
-    # Check H2/H3 headings — labels like "What It Does" or "Key Findings" are weaker
-    # than sentences like "Every field carries a confidence level."
-    label_patterns = [
-        r'^#{2,3}\s+(What|How|Key|The|All|Complete|Appendix)\s',
-    ]
-    for i, line in enumerate(lines, 1):
-        m = re.match(r'^(#{2,3})\s+(.*)', line)
-        if m:
-            heading = m.group(2).strip()
-            # Heuristic: headings under 5 words without a verb are likely labels
-            words = heading.split()
-            if len(words) <= 3 and not heading.endswith('.') and not heading.endswith('?'):
-                warnings.append(f"  Line {i}: Heading '{heading}' may be a label, not an action title")
-
-    # Rule: No tables in narrative body (only after last --- or in Appendix)
-    in_appendix = False
-    last_hr_line = 0
-    for i, line in enumerate(lines, 1):
-        if line.strip().startswith('## Appendix'):
-            in_appendix = True
-        if re.match(r'^---+\s*$', line):
-            last_hr_line = i
-    for i, line in enumerate(lines, 1):
-        if line.strip().startswith('|') and '|' in line and not in_appendix:
-            # Check if this table is before the appendix sections
-            is_pre_appendix = True
-            for j in range(i, len(lines)):
-                if lines[j].strip().startswith('## Appendix'):
-                    break
-            else:
-                is_pre_appendix = False
-            # Allow tables that are directly after an Appendix heading
-            prev_heading = ''
-            for j in range(i - 1, -1, -1):
-                if lines[j].strip().startswith('## '):
-                    prev_heading = lines[j]
-                    break
-            if 'Appendix' not in prev_heading and 'Methodology' not in prev_heading:
-                # Check if separator line (---|---) — skip those
-                if not re.match(r'^\|[-:\s|]+\|$', line.strip()):
-                    warnings.append(f"  Line {i}: Table in narrative body — consider moving to appendix")
-                    break  # Only warn once about body tables
-
-    # Rule: Staleness / data freshness should appear in header area (first 10 lines)
+    # Rule: Staleness / data freshness indicator in header — binary, either present or not
     header_area = '\n'.join(lines[:15])
     if 'current as of' not in header_area.lower() and 'generated' not in header_area.lower():
         warnings.append("  No data freshness indicator in header area — add 'Data current as of YYYY-MM-DD'")
-
-    # Rule: Bold first sentence per section (inverted pyramid)
-    # Check that the first paragraph after each H2 starts with **bold**
-    for i, line in enumerate(lines):
-        if re.match(r'^##\s+', line) and not line.strip().startswith('## Appendix'):
-            # Find next non-empty line that's not a heading
-            for j in range(i + 1, min(i + 5, len(lines))):
-                content = lines[j].strip()
-                if content and not content.startswith('#') and not content.startswith('---'):
-                    if not content.startswith('**'):
-                        warnings.append(f"  Line {j + 1}: First paragraph after heading doesn't start bold — inverted pyramid rule")
-                    break
 
     if warnings:
         print(f"\n⚠ Design rule warnings for {os.path.basename(md_path)}:", file=sys.stderr)
