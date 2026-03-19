@@ -262,6 +262,12 @@ def render_brief(md_path, brand, output_path=None):
                 story.append(Paragraph(inline_markup(block['text'], brand), styles['h3']))
                 i += 1
 
+            elif btype == 'h4':
+                # H4 = finding/item header — render as AccentBox for visual distinction
+                story.append(Spacer(1, 6))
+                story.append(AccentBox(brand, inline_markup(block['text'], brand), bold=True, size=9))
+                i += 1
+
             elif btype == 'hr':
                 story.append(hr(brand))
                 i += 1
