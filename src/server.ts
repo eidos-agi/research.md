@@ -891,13 +891,13 @@ export function createServer(): Server {
             }
           }
 
-          brief.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"}`);
+          brief.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"} | Data current as of ${today()}`);
           brief.push("");
 
           // ── LAYER 2: Key Findings ──
           brief.push("---");
           brief.push("");
-          brief.push("## Key Findings");
+          brief.push("## The research uncovered " + findings.length + " findings — here are the strongest.");
           brief.push("");
 
           // Show HIGH findings first, then MODERATE
@@ -916,7 +916,7 @@ export function createServer(): Server {
           if (candidateScores.length > 0) {
             brief.push("---");
             brief.push("");
-            brief.push("## Candidates Evaluated");
+          brief.push(`## ${candidateScores.length} approaches were evaluated — one scored decisively higher.`);
             brief.push("");
             brief.push("| Rank | Candidate | Score | Verdict |");
             brief.push("|------|-----------|-------|---------|");
@@ -931,15 +931,39 @@ export function createServer(): Server {
           if (decisionContent) {
             brief.push("---");
             brief.push("");
-            brief.push("## Decision");
-            brief.push("");
-            // Extract the Decision and Rationale sections
+            // Extract decision text first so we can use it in the heading
             const decisionText = extractSection(decisionContent, "Decision");
             const rationaleText = extractSection(decisionContent, "Rationale");
-            if (decisionText) brief.push(decisionText);
-            if (rationaleText) {
+            // Use the first sentence of the decision as the heading (McKinsey action title)
+            const firstSentence = decisionText ? decisionText.split(/[.!]\s/)[0] + "." : "A decision was reached.";
+            brief.push(`## ${firstSentence.length < 120 ? firstSentence : "The decision is clear."}`);
+            brief.push("");
+            if (decisionText && firstSentence.length < 120) {
+              // Decision text already used in heading — add rationale
+            } else if (decisionText) {
+              brief.push(decisionText);
               brief.push("");
+            }
+            if (rationaleText) {
               brief.push("**Rationale:** " + rationaleText.split("\n")[0]);
+            }
+            brief.push("");
+          }
+
+          // ── LAYER 4.5: What We Don't Know Yet (absence of expected change) ──
+          // Surface MODERATE and UNVERIFIED findings as honest gaps
+          const gapFindings = [...modFindings, ...findings.filter(f => f.frontmatter.evidence === "LOW" || f.frontmatter.evidence === "UNVERIFIED")];
+          if (gapFindings.length > 0) {
+            brief.push("---");
+            brief.push("");
+            brief.push("## What we don't know yet");
+            brief.push("");
+            for (const f of gapFindings.slice(0, 5)) {
+              const claim = extractSection(f.content, "Claim").split("\n")[0] || "";
+              brief.push(`- **${f.frontmatter.title}** (${f.frontmatter.evidence}) — ${claim.substring(0, 200)}${claim.length > 200 ? "..." : ""}`);
+            }
+            if (gapFindings.length > 5) {
+              brief.push(`- *...and ${gapFindings.length - 5} more lower-evidence findings*`);
             }
             brief.push("");
           }
@@ -974,9 +998,10 @@ export function createServer(): Server {
           // ── LAYER 7: Methodology ──
           brief.push("---");
           brief.push("");
-          brief.push("## Methodology");
+          brief.push("## This research followed a structured, peer-reviewed methodology.");
           brief.push("");
-          brief.push(`- **Project:** ${projectConfig.projectName}`);
+          brief.push(`**${projectConfig.projectName}** moved from research through peer review to decision in ${projectConfig.transitions.length} phases.`);
+          brief.push("");
           brief.push(`- **Phase:** ${projectConfig.phase}`);
           brief.push(`- **Created:** ${projectConfig.created}`);
           brief.push(`- **Findings:** ${findings.length} (${highFindings.length} HIGH, ${modFindings.length} MODERATE)`);
@@ -1090,7 +1115,7 @@ export function createServer(): Server {
           sections.push("Title + Question + Verdict");
 
           // ── SECTION 2: Evidence Summary ──
-          report.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE, ${lowFindings.length} LOW, ${unverifiedFindings.length} UNVERIFIED) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"}`);
+          report.push(`**Evidence:** ${findings.length} findings (${highFindings.length} HIGH, ${modFindings.length} MODERATE, ${lowFindings.length} LOW, ${unverifiedFindings.length} UNVERIFIED) | ${candidates.length} candidates scored | Peer reviewed: ${hasPeerReview ? "Yes" : "No"} | Data current as of ${today()}`);
           report.push("");
           sections.push("Evidence Summary");
 

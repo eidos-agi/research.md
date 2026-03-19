@@ -44,7 +44,7 @@ class Brand:
             "accent": "#2D6B4A",
             "muted": "#6B7B73",
             "name": "Connection Forge",
-            "footer": "Connection Forge — Vendor Integration Contracts by AIC Holdings",
+            "footer": "Connection Forge — Vendor Integration Contracts by Eidos",
         },
         "aic": {
             "primary": "#1B365D",
@@ -127,6 +127,8 @@ class Brand:
                                    leading=10, textColor=self.dark),
             "cell_bold": ParagraphStyle("cell_bold", fontName="Helvetica-Bold",
                                         fontSize=8, leading=10, textColor=self.dark),
+            "cell_header": ParagraphStyle("cell_header", fontName="Helvetica-Bold",
+                                          fontSize=8, leading=10, textColor=white),
             "cell_center": ParagraphStyle("cell_center", fontName="Helvetica",
                                           fontSize=8, leading=10,
                                           textColor=self.dark, alignment=TA_CENTER),
