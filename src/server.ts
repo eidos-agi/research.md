@@ -999,7 +999,25 @@ export function createServer(): Server {
           const briefPath = path.join(root, "BRIEF.md");
           fs.writeFileSync(briefPath, brief.join("\n") + "\n");
 
-          return { content: [{ type: "text", text: `Research brief generated: BRIEF.md (${brief.length} lines)\n\n7 layers: One-liner → Key Findings → Candidates → Decision → Playbook → Design Rules → Methodology\n\nAudience: ${audience}` }] };
+          // Auto-generate PDF alongside BRIEF.md
+          let pdfStatus = "";
+          try {
+            const renderScript = path.join(__dirname, "..", "src", "render-brief.py");
+            if (fs.existsSync(renderScript)) {
+              const { execFileSync } = require("child_process");
+              const pdfPath = path.join(root, "BRIEF.pdf");
+              execFileSync("python3", [renderScript, briefPath, "--brand", "research", "-o", pdfPath], {
+                stdio: ["pipe", "pipe", "pipe"],
+                encoding: "utf-8",
+                timeout: 15000,
+              });
+              pdfStatus = `\nPDF: BRIEF.pdf generated alongside BRIEF.md`;
+            }
+          } catch (pdfErr: any) {
+            pdfStatus = `\nPDF: Could not generate (${pdfErr.message || "python3/reportlab not available"}). Run manually: research-md brief ${briefPath}`;
+          }
+
+          return { content: [{ type: "text", text: `Research brief generated: BRIEF.md (${brief.length} lines)\n\n7 layers: One-liner → Key Findings → Candidates → Decision → Playbook → Design Rules → Methodology\n\nAudience: ${audience}${pdfStatus}` }] };
         }
 
         default:
