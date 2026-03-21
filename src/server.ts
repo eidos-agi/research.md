@@ -106,20 +106,34 @@ function getProject(researchId: unknown): ResolvedProject {
 
 // research_id parameter — required on every data tool
 const RID = {
-  research_id: { type: "string", description: "Project GUID from research-md.json 'id' field. Required." },
+  research_id: { type: "string", description: "Project GUID from .research/research.json 'id' field. Required." },
 } as const;
 
 export function createServer(): Server {
   const server = new Server(
     { name: "research-md", version: "0.1.0" },
-    { capabilities: { tools: {}, resources: {} } }
+    {
+      capabilities: { tools: {}, resources: {} },
+      instructions: `research.md is the decision forge — evidence-graded, phase-gated, peer-reviewed decisions.
+
+Use it when a question has consequences: architecture choices, technology selections, strategic bets, anything that will become a contract in visionlog. Do not make consequential decisions in conversation. Run them through research.md so the evidence is recorded, the criteria are locked, and the decision is reviewable by any future agent or human.
+
+Call project_set first to register the project GUID for this session. Every subsequent tool call takes that GUID.
+
+The trilogy:
+- research.md: decide with evidence — this is where decisions are earned
+- visionlog: records the decision as an ADR and contract — what all execution must honor
+- forge.md: executes tasks within those contracts
+
+The flow is one-way: research.md feeds visionlog, visionlog feeds forge.md. A decision skipped here is a contract that was never earned.`,
+    }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
         name: "project_set",
-        description: "Register a research project for this session. Call this first — reads the research-md.json at the given path and registers its GUID. Also registers all subprojects if it's a root.",
+        description: "Register a research project for this session. Call this first — reads .research/research.json at the given path and registers its GUID. Also registers all subprojects if it's a root.",
         inputSchema: {
           type: "object",
           required: ["path"],
@@ -135,8 +149,8 @@ export function createServer(): Server {
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "init",
-        description: "Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in research-md.json so any future session can understand the research without prior conversation history.",
+        name: "project_init",
+        description: "Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in .research/research.json so any future session can understand the research without prior conversation history.",
         inputSchema: {
           type: "object",
           required: ["path"],
@@ -412,7 +426,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: ["Registered projects:", "", ...lines].join("\n") }] };
         }
 
-        case "init": {
+        case "project_init": {
           const targetPath = args?.path as string;
           if (!targetPath) throw new ResearchValidationError("'path' is required.");
 

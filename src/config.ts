@@ -63,7 +63,8 @@ export interface RootConfig {
 
 export type ResearchConfig = ProjectConfig | RootConfig;
 
-const CONFIG_FILENAME = "research-md.json";
+const CONFIG_DIR = ".research";
+const CONFIG_FILENAME = "research.json";
 
 function isRootConfig(config: ResearchConfig): config is RootConfig {
   return "projects" in config && Array.isArray((config as RootConfig).projects);
@@ -86,10 +87,10 @@ export function registerProject(projectPath: string): { id: string; projectName:
   const absPath = path.resolve(projectPath);
   const config = loadConfig(absPath);
   if (!config) {
-    throw new Error(`No research-md.json at ${absPath}. Run 'research-md init' there first.`);
+    throw new Error(`No .research/research.json at ${absPath}. Call project_init there first.`);
   }
   if (!config.id) {
-    throw new Error(`research-md.json at ${absPath} has no 'id' field. Re-run 'research-md init' to generate one.`);
+    throw new Error(`.research/research.json at ${absPath} has no 'id' field. Re-run project_init to generate one.`);
   }
 
   guidToPath.set(config.id, absPath);
@@ -127,7 +128,7 @@ export function listRegistered(): Array<{ id: string; path: string }> {
 // ── Config loading ───────────────────────────────────────────────────────────
 
 export function loadConfig(dir: string): ResearchConfig | null {
-  const configPath = path.join(dir, CONFIG_FILENAME);
+  const configPath = path.join(dir, CONFIG_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(configPath, "utf-8")) as ResearchConfig;
@@ -181,7 +182,11 @@ export function resolveByGuid(guid: string): ResolvedProject | null {
 // ── Saving ───────────────────────────────────────────────────────────────────
 
 export function saveConfig(dir: string, config: ResearchConfig): void {
-  const configPath = path.join(dir, CONFIG_FILENAME);
+  const configDir = path.join(dir, CONFIG_DIR);
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  const configPath = path.join(configDir, CONFIG_FILENAME);
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
@@ -249,10 +254,11 @@ export function requirePhase(config: ProjectConfig, minPhase: ProjectPhase, acti
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 export function initProject(targetDir: string, projectName?: string, question?: string, context?: string): void {
+  const researchDir = path.join(targetDir, CONFIG_DIR);
   const dirs = ["findings", "candidates", "evaluations"];
 
   for (const dir of dirs) {
-    const fullPath = path.join(targetDir, dir);
+    const fullPath = path.join(researchDir, dir);
     if (!fs.existsSync(fullPath)) {
       fs.mkdirSync(fullPath, { recursive: true });
     }
