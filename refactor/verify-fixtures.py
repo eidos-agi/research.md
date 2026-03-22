@@ -58,6 +58,9 @@ def norm(text):
     text = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<GUID>", text)
     # Normalize PDF status lines (TS generates PDF, Python doesn't)
     text = re.sub(r"\nPDF: .*$", "", text, flags=re.MULTILINE)
+    # Normalize OS error messages (Node vs Python format errno differently)
+    text = re.sub(r"ENAMETOOLONG: name too long, open", "File name too long:", text)
+    text = re.sub(r"\[Errno \d+\] File name too long:", "File name too long:", text)
     return text
 
 
