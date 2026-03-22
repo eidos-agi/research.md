@@ -1,0 +1,22 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "003-high-with-hash",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "title": "Postgres benchmarks",
+    "claim": "Official benchmarks show 50k TPS.",
+    "evidence": "HIGH",
+    "source": "postgresql.org (content_hash:abc12345)"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Finding created: findings/0003-postgres-benchmarks.md\nID: 0003 | Evidence: HIGH"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

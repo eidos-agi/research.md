@@ -1,0 +1,23 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "004-high-no-hash-error",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "title": "Should fail",
+    "claim": "No hash provided.",
+    "evidence": "HIGH",
+    "source": "some blog"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Evidence grade \"HIGH\" requires proof of source consultation. Include a content_hash in your source field to prove you fetched and read the source material. Format: \"<url_or_description> (content_hash:<first_8_chars_of_sha256>)\"\n\nTo compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\nIf your evidence is based on reasoning rather than a fetched source, use evidence: \"LOW\" or \"UNVERIFIED\" instead."
+      }
+    ],
+    "isError": true
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

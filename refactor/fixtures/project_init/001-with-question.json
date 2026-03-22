@@ -1,0 +1,21 @@
+{
+  "tool": "project_init",
+  "fixture_id": "001-with-question",
+  "input": {
+    "path": "/var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-fix-ByGj7Q",
+    "name": "test-research",
+    "question": "What is the best approach?",
+    "context": "We need to decide on architecture."
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Research project initialized at /var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-fix-ByGj7Q\nID: 8b57d0b4-3472-4871-b8d7-467039ff3fae\n\nAll artifacts stored under .research/"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

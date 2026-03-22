@@ -1,0 +1,18 @@
+{
+  "tool": "research_report",
+  "fixture_id": "001-generate",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Full research report generated: REPORT.md (105 lines)\n\nSections: Title + Question + Verdict → Evidence Summary → All Findings (3) → All Candidates (2) → Complete Scoring Matrix → Decision → Methodology\n\nIncludes ALL 3 findings and ALL 2 candidates (untruncated).\nPDF: REPORT.pdf generated alongside REPORT.md"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

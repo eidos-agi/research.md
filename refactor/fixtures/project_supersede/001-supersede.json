@@ -1,0 +1,19 @@
+{
+  "tool": "project_supersede",
+  "fixture_id": "001-supersede",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "superseded_by": "ADR-2026-99: Switch to DuckDB"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Project marked as superseded by ADR-2026-99: Switch to DuckDB. Phase → superseded"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}
