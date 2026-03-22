@@ -331,6 +331,7 @@ The flow is one-way: research.md feeds visionlog, visionlog feeds ike.md. A deci
             ...RID,
             reviewer: { type: "string", minLength: 1 },
             findings: { type: "array", items: { type: "string" }, minItems: 1 },
+            attestations: { type: "object", additionalProperties: { type: "string", enum: ["ATTESTED", "DISPUTED", "SKIPPED"] }, description: "Per-finding attestations keyed by finding ID" },
             notes: { type: "string" },
           },
           additionalProperties: false,
@@ -503,6 +504,18 @@ The flow is one-way: research.md feeds visionlog, visionlog feeds ike.md. A deci
           const claim = args?.claim as string;
           const evidence = (args?.evidence as FindingFrontmatter["evidence"]) || "UNVERIFIED";
           const source = (args?.source as string) || "unspecified";
+
+          // Layer 1: Evidence integrity — HIGH/MODERATE require proof of source consultation
+          if ((evidence === "HIGH" || evidence === "MODERATE") && !source.includes("content_hash:")) {
+            throw new ResearchValidationError(
+              `Evidence grade "${evidence}" requires proof of source consultation. ` +
+              `Include a content_hash in your source field to prove you fetched and read the source material. ` +
+              `Format: "<url_or_description> (content_hash:<first_8_chars_of_sha256>)"\n\n` +
+              `To compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\n` +
+              `If your evidence is based on reasoning rather than a fetched source, use evidence: "LOW" or "UNVERIFIED" instead.`
+            );
+          }
+
           const id = nextFindingId(root);
           const slug = sanitizeSlug(title);
           const fp = findingPath(root, id, slug);
@@ -659,6 +672,23 @@ The flow is one-way: research.md feeds visionlog, visionlog feeds ike.md. A deci
           const gateResult = runScoringGates(root, slug);
           if (!gateResult.passed) throw new ResearchGateError(gateResult.error!);
 
+          // Layer 3: Evidence integrity enforcement at scoring time
+          const reviewFile = peerReviewPath(root);
+          if (fs.existsSync(reviewFile)) {
+            const reviewContent = fs.readFileSync(reviewFile, "utf-8");
+            // Check for DISPUTED attestations — hard block
+            if (reviewContent.includes("DISPUTED")) {
+              const disputedMatches = [...reviewContent.matchAll(/\*\*(\w+-?\d*)\*\*:\s*DISPUTED/g)];
+              if (disputedMatches.length > 0) {
+                const ids = disputedMatches.map((m) => m[1]).join(", ");
+                throw new ResearchGateError(
+                  `Scoring blocked: ${disputedMatches.length} finding(s) have DISPUTED attestations (${ids}). ` +
+                  `Resolve disputes before scoring — either fix the finding, change its evidence grade, or re-review.`
+                );
+              }
+            }
+          }
+
           const fp = candidatePath(root, slug);
           const parsed = readMarkdown<CandidateFrontmatter>(fp);
           const total = Object.values(scores).reduce((a, b) => a + b, 0);
@@ -730,15 +760,40 @@ The flow is one-way: research.md feeds visionlog, visionlog feeds ike.md. A deci
           const reviewer = args?.reviewer as string;
           const findings = args?.findings as string[];
           const notes = (args?.notes as string) || "";
+          const attestations = (args?.attestations as Record<string, string>) || {};
           const fp = peerReviewPath(root);
 
-          const content = ["# Peer Review", "", `**Reviewer:** ${reviewer}`, `**Date:** ${today()}`, "", "## Findings", "", ...findings.map((f) => `- ${f}`), ...(notes ? ["", "## Notes", "", notes] : [])].join("\n");
+          // Layer 2: Check that HIGH-evidence findings have attestations
+          const allFindings = listFindings(root);
+          const highFindings = allFindings.filter((f) => f.frontmatter.evidence === "HIGH" || f.frontmatter.evidence === "MODERATE");
+          const unattested = highFindings.filter((f) => !attestations[f.frontmatter.id]);
+
+          const findingLines = findings.map((f) => {
+            const att = attestations[f.split(":")[0]?.trim()] || attestations[f] || "";
+            return att ? `- ${f} — **${att}**` : `- ${f}`;
+          });
+
+          const attestationLines: string[] = [];
+          if (Object.keys(attestations).length > 0) {
+            attestationLines.push("", "## Attestations", "");
+            for (const [findingId, att] of Object.entries(attestations)) {
+              attestationLines.push(`- **${findingId}**: ${att}`);
+            }
+          }
+
+          if (unattested.length > 0) {
+            attestationLines.push("", `> ⚠️ ${unattested.length} HIGH/MODERATE finding(s) without attestation: ${unattested.map((f) => f.frontmatter.id).join(", ")}`);
+            attestationLines.push("> These will be treated as SKIPPED at scoring time — evidence grade may be downgraded.");
+          }
+
+          const content = ["# Peer Review", "", `**Reviewer:** ${reviewer}`, `**Date:** ${today()}`, "", "## Findings", "", ...findingLines, ...attestationLines, ...(notes ? ["", "## Notes", "", notes] : [])].join("\n");
 
           fs.mkdirSync(path.dirname(fp), { recursive: true });
           fs.writeFileSync(fp, content + "\n");
           advancePhase(root, "reviewed", `Peer review by ${reviewer}`);
 
-          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked. Phase → reviewed` }] };
+          const warnings = unattested.length > 0 ? `\n⚠️ ${unattested.length} HIGH/MODERATE finding(s) lack attestation — will be downgraded at scoring.` : "";
+          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked. Phase → reviewed${warnings}` }] };
         }
 
         case "project_decide": {
