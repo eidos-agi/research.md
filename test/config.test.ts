@@ -27,10 +27,10 @@ describe("initProject", () => {
   it("creates folder structure and config", () => {
     initProject(tmpDir, "test-project");
 
-    expect(fs.existsSync(path.join(tmpDir, "findings"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, "candidates"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, "evaluations"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, "research-md.json"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".research", "findings"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".research", "candidates"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".research", "evaluations"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".research", "research.json"))).toBe(true);
   });
 
   it("generates a UUID in the config", () => {
@@ -151,7 +151,7 @@ describe("GUID registration and resolution", () => {
 
   it("throws on path without config", () => {
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "empty-"));
-    expect(() => registerProject(emptyDir)).toThrow("No research-md.json");
+    expect(() => registerProject(emptyDir)).toThrow("No .research/research.json");
     fs.rmSync(emptyDir, { recursive: true, force: true });
   });
 });
