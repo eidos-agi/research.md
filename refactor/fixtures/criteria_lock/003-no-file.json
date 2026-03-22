@@ -1,0 +1,18 @@
+{
+  "tool": "criteria_lock",
+  "fixture_id": "003-no-file",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: File '.research/evaluations/decision-criteria.md' not found."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

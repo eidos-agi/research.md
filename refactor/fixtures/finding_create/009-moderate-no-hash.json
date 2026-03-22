@@ -1,0 +1,22 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "009-moderate-no-hash",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "title": "Mod no hash",
+    "claim": "test",
+    "evidence": "MODERATE",
+    "source": "blog"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Evidence grade \"MODERATE\" requires proof of source consultation. Include a content_hash in your source field to prove you fetched and read the source material. Format: \"<url_or_description> (content_hash:<first_8_chars_of_sha256>)\"\n\nTo compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\nIf your evidence is based on reasoning rather than a fetched source, use evidence: \"LOW\" or \"UNVERIFIED\" instead."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

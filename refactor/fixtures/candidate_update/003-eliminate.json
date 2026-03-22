@@ -1,0 +1,19 @@
+{
+  "tool": "candidate_update",
+  "fixture_id": "003-eliminate",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "tidb",
+    "verdict": "eliminated"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Candidate 'tidb' updated: verdict → eliminated."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

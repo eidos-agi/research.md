@@ -1,0 +1,23 @@
+{
+  "tool": "candidate_score",
+  "fixture_id": "006-with-notes",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "dynamodb-aws",
+    "scores": {
+      "Speed": 9,
+      "Cost": 2
+    },
+    "notes": "Fast but expensive"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Scored 'dynamodb-aws'. Total: 11\n  Speed: 9\n  Cost: 2"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

@@ -1,0 +1,19 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "008-unicode",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "title": "データベース比較",
+    "claim": "Japanese test"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Finding created: findings/0002-.md\nID: 0002 | Evidence: UNVERIFIED"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

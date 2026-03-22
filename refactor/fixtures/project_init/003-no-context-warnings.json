@@ -1,0 +1,18 @@
+{
+  "tool": "project_init",
+  "fixture_id": "003-no-context-warnings",
+  "input": {
+    "path": "/var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-e-JKdUbT",
+    "name": "no-question-test"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Research project initialized at /var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-e-JKdUbT\nID: 644bf402-da46-4627-bccd-3e53f8683c3c\n\nAll artifacts stored under .research/\n\nWARNING: No research question provided. Future sessions won't know what this research is about.\nWARNING: No context brief provided. Future sessions will lack the background needed to continue this research."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

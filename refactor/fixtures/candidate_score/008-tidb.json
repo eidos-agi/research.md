@@ -1,0 +1,22 @@
+{
+  "tool": "candidate_score",
+  "fixture_id": "008-tidb",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "tidb",
+    "scores": {
+      "Speed": 7,
+      "Cost": 5
+    }
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Scored 'tidb'. Total: 12\n  Speed: 7\n  Cost: 5"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

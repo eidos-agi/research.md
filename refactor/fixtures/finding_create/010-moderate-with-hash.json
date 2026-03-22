@@ -1,0 +1,21 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "010-moderate-with-hash",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "title": "Mod with hash",
+    "claim": "test",
+    "evidence": "MODERATE",
+    "source": "blog (content_hash:12345678)"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Finding created: findings/0003-mod-with-hash.md\nID: 0003 | Evidence: MODERATE"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

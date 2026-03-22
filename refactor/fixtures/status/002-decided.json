@@ -1,0 +1,17 @@
+{
+  "tool": "status",
+  "fixture_id": "002-decided",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "## edge-cases — Research Status\n\n**Question:** Edge testing?\n\n**Context:**\nBoundary conditions\n\n**Phase:** decided\n**Criteria locked:** Yes (2026-03-22)\n**Peer review logged:** Yes\n**TBD items remaining:** 0\n\n**Findings (3):**\n  0001 [open] [LOW] \n  0002 [open] [UNVERIFIED] データベース比較\n  0003 [open] [MODERATE] Mod with hash\n\n**Candidates (3):**\n  CockroachDB — provisional\n  DynamoDB — provisional\n  TiDB — eliminated\n\n**Phase history:**\n  2026-03-22 → research\n  2026-03-22 → locked (Criteria weights frozen)\n  2026-03-22 → reviewed (Peer review by GPT-5.2)\n  2026-03-22 → scored (Scored candidate: dynamodb-aws)\n  2026-03-22 → decided (Use DynamoDB for edge performance)\n\n**Integrity issues:**\n  [WARNING] Phase is 'decided' but 2 candidate(s) still have verdict 'provisional': CockroachDB, DynamoDB. Update verdicts to reflect the decision."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

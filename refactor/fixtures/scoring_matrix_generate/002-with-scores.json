@@ -1,0 +1,17 @@
+{
+  "tool": "scoring_matrix_generate",
+  "fixture_id": "002-with-scores",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Scoring matrix generated at evaluations/scoring-matrix.md"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

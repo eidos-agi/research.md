@@ -1,0 +1,19 @@
+{
+  "tool": "candidate_update",
+  "fixture_id": "004-update-description",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "cockroachdb",
+    "description": "Updated: Global SQL with geo-partitioning"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Candidate 'cockroachdb' updated: description updated."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

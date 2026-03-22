@@ -1,0 +1,19 @@
+{
+  "tool": "finding_update",
+  "fixture_id": "003-update-claim",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "id": "0001",
+    "claim": "Updated claim"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Finding 0001 updated."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}
