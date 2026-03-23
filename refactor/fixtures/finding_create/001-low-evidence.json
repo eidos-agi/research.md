@@ -1,0 +1,22 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "001-low-evidence",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "title": "Postgres handles concurrent writes better",
+    "claim": "Postgres WAL-based concurrency handles 10x more concurrent writes than SQLite.",
+    "evidence": "LOW",
+    "source": "Team experience"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Finding created: findings/0001-postgres-handles-concurrent-writes-better.md\nID: 0001 | Evidence: LOW"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

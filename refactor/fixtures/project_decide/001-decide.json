@@ -1,0 +1,21 @@
+{
+  "tool": "project_decide",
+  "fixture_id": "001-decide",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "decision": "Use PostgreSQL for the MCP server database.",
+    "rationale": "Higher performance under concurrent load outweighs SQLite simplicity. Ecosystem support is also stronger.",
+    "adr_reference": "ADR-2026-42"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Decision recorded. Phase → decided\n\nWrote .research/DECISION.md\n\nUse PostgreSQL for the MCP server database."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

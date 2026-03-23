@@ -1,0 +1,18 @@
+{
+  "tool": "project_set",
+  "fixture_id": "001-happy-path",
+  "input": {
+    "path": "/var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-lifecycle-WzeJ7E"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Registered: /var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-lifecycle-WzeJ7E\nID: 1d5bfdfd-0961-46e4-ab21-7615f52cefc7\nName: lifecycle-test\n\n**Question:** Which database should we use?\n\n**Context:**\nEvaluating Postgres vs SQLite for our MCP server data.\n\nUse the 'id' field as research_id on all subsequent tool calls."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

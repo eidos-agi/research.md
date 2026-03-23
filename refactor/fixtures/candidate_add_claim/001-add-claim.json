@@ -1,0 +1,20 @@
+{
+  "tool": "candidate_add_claim",
+  "fixture_id": "001-add-claim",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "slug": "postgresql",
+    "claim": "Handles >10k concurrent connections"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Claim added to 'postgresql'."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

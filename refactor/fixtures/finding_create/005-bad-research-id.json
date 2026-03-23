@@ -1,0 +1,21 @@
+{
+  "tool": "finding_create",
+  "fixture_id": "005-bad-research-id",
+  "input": {
+    "research_id": "bad-guid",
+    "title": "Fail",
+    "claim": "Fail"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Unknown research_id 'bad-guid'. This project hasn't been registered in this session. Call `project_set` with the project's path to register it. The research_id is the 'id' field in the project's research-md.json."
+      }
+    ],
+    "isError": true
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

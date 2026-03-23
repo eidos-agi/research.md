@@ -1,0 +1,16 @@
+{
+  "tool": "project_get",
+  "fixture_id": "001-with-projects",
+  "input": {},
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Registered projects:\n\n1d5bfdfd-0961-46e4-ab21-7615f52cefc7 → /var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-lifecycle-WzeJ7E"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

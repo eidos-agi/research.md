@@ -1,0 +1,19 @@
+{
+  "tool": "candidate_create",
+  "fixture_id": "005-with-description",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "title": "CockroachDB",
+    "description": "Distributed SQL database"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Candidate created: candidates/cockroachdb.md"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

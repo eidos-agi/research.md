@@ -1,0 +1,18 @@
+{
+  "tool": "project_init",
+  "fixture_id": "002-no-question",
+  "input": {
+    "path": "/var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-fix-lnObHW"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Research project initialized at /var/folders/x_/j3nb_xdn5pq2845d4xsd_rn80000gn/T/rmd-fix-lnObHW\nID: 198ab737-a261-4c6c-aa9d-de50f4496b50\n\nAll artifacts stored under .research/\n\nWARNING: No research question provided. Future sessions won't know what this research is about.\nWARNING: No context brief provided. Future sessions will lack the background needed to continue this research."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

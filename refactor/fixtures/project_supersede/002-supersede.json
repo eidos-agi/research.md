@@ -1,0 +1,18 @@
+{
+  "tool": "project_supersede",
+  "fixture_id": "002-supersede",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "superseded_by": "New evaluation"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Project marked as superseded by New evaluation. Phase → superseded"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

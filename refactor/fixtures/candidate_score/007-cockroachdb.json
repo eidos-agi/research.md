@@ -1,0 +1,22 @@
+{
+  "tool": "candidate_score",
+  "fixture_id": "007-cockroachdb",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "cockroachdb",
+    "scores": {
+      "Speed": 6,
+      "Cost": 4
+    }
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Scored 'cockroachdb'. Total: 10\n  Speed: 6\n  Cost: 4"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

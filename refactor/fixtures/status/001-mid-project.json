@@ -1,0 +1,18 @@
+{
+  "tool": "status",
+  "fixture_id": "001-mid-project",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "## lifecycle-test — Research Status\n\n**Question:** Which database should we use?\n\n**Context:**\nEvaluating Postgres vs SQLite for our MCP server data.\n\n**Phase:** locked\n**Criteria locked:** Yes (2026-03-22)\n**Peer review logged:** No\n**TBD items remaining:** 0\n\n**Findings (3):**\n  0001 [confirmed] [MODERATE] Postgres handles concurrent writes better\n  0002 [open] [UNVERIFIED] SQLite is zero-config\n  0003 [open] [HIGH] Postgres benchmarks\n\n**Candidates (2):**\n  PostgreSQL — recommended\n  SQLite — provisional\n\n**Phase history:**\n  2026-03-22 → research\n  2026-03-22 → locked (Criteria weights frozen)\n\n**Integrity:** All checks passed."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

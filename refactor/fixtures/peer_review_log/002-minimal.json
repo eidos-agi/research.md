@@ -1,0 +1,23 @@
+{
+  "tool": "peer_review_log",
+  "fixture_id": "002-minimal",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "reviewer": "GPT-5.2",
+    "findings": [
+      "Looks good",
+      "Needs more data"
+    ],
+    "notes": "Solid work"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Peer review logged by GPT-5.2 on 2026-03-22. Scoring is now unblocked. Phase → reviewed\n⚠️ 1 HIGH/MODERATE finding(s) lack attestation — will be downgraded at scoring."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

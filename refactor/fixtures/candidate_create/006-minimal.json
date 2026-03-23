@@ -1,0 +1,18 @@
+{
+  "tool": "candidate_create",
+  "fixture_id": "006-minimal",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "title": "TiDB"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Candidate created: candidates/tidb.md"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

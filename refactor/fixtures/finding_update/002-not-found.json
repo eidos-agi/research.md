@@ -1,0 +1,20 @@
+{
+  "tool": "finding_update",
+  "fixture_id": "002-not-found",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "id": "9999",
+    "status": "confirmed"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Finding '9999' not found."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

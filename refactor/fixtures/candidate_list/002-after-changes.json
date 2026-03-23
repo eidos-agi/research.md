@@ -1,0 +1,17 @@
+{
+  "tool": "candidate_list",
+  "fixture_id": "002-after-changes",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Verdict       | Title\n------------- | -----\nprovisional  | CockroachDB\nprovisional  | DynamoDB\neliminated   | TiDB"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

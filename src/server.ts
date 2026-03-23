@@ -106,20 +106,34 @@ function getProject(researchId: unknown): ResolvedProject {
 
 // research_id parameter — required on every data tool
 const RID = {
-  research_id: { type: "string", description: "Project GUID from research-md.json 'id' field. Required." },
+  research_id: { type: "string", description: "Project GUID from .research/research.json 'id' field. Required." },
 } as const;
 
 export function createServer(): Server {
   const server = new Server(
     { name: "research-md", version: "0.1.0" },
-    { capabilities: { tools: {}, resources: {} } }
+    {
+      capabilities: { tools: {}, resources: {} },
+      instructions: `research.md is the decision forge — evidence-graded, phase-gated, peer-reviewed decisions.
+
+Use it when a question has consequences: architecture choices, technology selections, strategic bets, anything that will become a contract in visionlog. Do not make consequential decisions in conversation. Run them through research.md so the evidence is recorded, the criteria are locked, and the decision is reviewable by any future agent or human.
+
+Call project_set first to register the project GUID for this session. Every subsequent tool call takes that GUID.
+
+The trilogy:
+- research.md: decide with evidence — this is where decisions are earned
+- visionlog: records the decision as an ADR and contract — what all execution must honor
+- ike.md: executes tasks within those contracts
+
+The flow is one-way: research.md feeds visionlog, visionlog feeds ike.md. A decision skipped here is a contract that was never earned.`,
+    }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
         name: "project_set",
-        description: "Register a research project for this session. Call this first — reads the research-md.json at the given path and registers its GUID. Also registers all subprojects if it's a root.",
+        description: "Register a research project for this session. Call this first — reads .research/research.json at the given path and registers its GUID. Also registers all subprojects if it's a root.",
         inputSchema: {
           type: "object",
           required: ["path"],
@@ -135,8 +149,8 @@ export function createServer(): Server {
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
-        name: "init",
-        description: "Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in research-md.json so any future session can understand the research without prior conversation history.",
+        name: "project_init",
+        description: "Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in .research/research.json so any future session can understand the research without prior conversation history.",
         inputSchema: {
           type: "object",
           required: ["path"],
@@ -317,6 +331,7 @@ export function createServer(): Server {
             ...RID,
             reviewer: { type: "string", minLength: 1 },
             findings: { type: "array", items: { type: "string" }, minItems: 1 },
+            attestations: { type: "object", additionalProperties: { type: "string", enum: ["ATTESTED", "DISPUTED", "SKIPPED"] }, description: "Per-finding attestations keyed by finding ID" },
             notes: { type: "string" },
           },
           additionalProperties: false,
@@ -412,7 +427,7 @@ export function createServer(): Server {
           return { content: [{ type: "text", text: ["Registered projects:", "", ...lines].join("\n") }] };
         }
 
-        case "init": {
+        case "project_init": {
           const targetPath = args?.path as string;
           if (!targetPath) throw new ResearchValidationError("'path' is required.");
 
@@ -429,7 +444,7 @@ export function createServer(): Server {
             const subWarnings: string[] = [];
             if (!args?.question) subWarnings.push("WARNING: No research question provided.");
             if (!args?.context) subWarnings.push("WARNING: No context brief provided.");
-            return { content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\nID: ${subConfig?.id}\n\nFolders: findings/ candidates/ evaluations/${subWarnings.length ? "\n\n" + subWarnings.join("\n") : ""}` }] };
+            return { content: [{ type: "text", text: `Subproject '${subName}' initialized at ${targetPath}/${subName}\nID: ${subConfig?.id}\n\nFolders: .research/findings/ .research/candidates/ .research/evaluations/${subWarnings.length ? "\n\n" + subWarnings.join("\n") : ""}` }] };
           }
 
           initProject(targetPath, args?.name as string | undefined, args?.question as string | undefined, args?.context as string | undefined);
@@ -437,7 +452,7 @@ export function createServer(): Server {
           const warnings: string[] = [];
           if (!args?.question) warnings.push("WARNING: No research question provided. Future sessions won't know what this research is about.");
           if (!args?.context) warnings.push("WARNING: No context brief provided. Future sessions will lack the background needed to continue this research.");
-          return { content: [{ type: "text", text: `Research project initialized at ${targetPath}\nID: ${config?.id}\n\nFolders: findings/ candidates/ evaluations/${warnings.length ? "\n\n" + warnings.join("\n") : ""}` }] };
+          return { content: [{ type: "text", text: `Research project initialized at ${targetPath}\nID: ${config?.id}\n\nAll artifacts stored under .research/${warnings.length ? "\n\n" + warnings.join("\n") : ""}` }] };
         }
 
         case "status": {
@@ -489,6 +504,18 @@ export function createServer(): Server {
           const claim = args?.claim as string;
           const evidence = (args?.evidence as FindingFrontmatter["evidence"]) || "UNVERIFIED";
           const source = (args?.source as string) || "unspecified";
+
+          // Layer 1: Evidence integrity — HIGH/MODERATE require proof of source consultation
+          if ((evidence === "HIGH" || evidence === "MODERATE") && !source.includes("content_hash:")) {
+            throw new ResearchValidationError(
+              `Evidence grade "${evidence}" requires proof of source consultation. ` +
+              `Include a content_hash in your source field to prove you fetched and read the source material. ` +
+              `Format: "<url_or_description> (content_hash:<first_8_chars_of_sha256>)"\n\n` +
+              `To compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\n` +
+              `If your evidence is based on reasoning rather than a fetched source, use evidence: "LOW" or "UNVERIFIED" instead.`
+            );
+          }
+
           const id = nextFindingId(root);
           const slug = sanitizeSlug(title);
           const fp = findingPath(root, id, slug);
@@ -622,7 +649,7 @@ export function createServer(): Server {
         case "criteria_lock": {
           const { projectRoot: root } = getProject(args?.research_id);
           const criteriaFile = decisionCriteriaPath(root);
-          if (!fs.existsSync(criteriaFile)) throw new ResearchNotFoundError("File", "evaluations/decision-criteria.md");
+          if (!fs.existsSync(criteriaFile)) throw new ResearchNotFoundError("File", ".research/evaluations/decision-criteria.md");
 
           const parsed = readMarkdown<DecisionCriteriaFrontmatter>(criteriaFile);
           if (parsed.frontmatter.locked) {
@@ -644,6 +671,23 @@ export function createServer(): Server {
 
           const gateResult = runScoringGates(root, slug);
           if (!gateResult.passed) throw new ResearchGateError(gateResult.error!);
+
+          // Layer 3: Evidence integrity enforcement at scoring time
+          const reviewFile = peerReviewPath(root);
+          if (fs.existsSync(reviewFile)) {
+            const reviewContent = fs.readFileSync(reviewFile, "utf-8");
+            // Check for DISPUTED attestations — hard block
+            if (reviewContent.includes("DISPUTED")) {
+              const disputedMatches = [...reviewContent.matchAll(/\*\*(\w+-?\d*)\*\*:\s*DISPUTED/g)];
+              if (disputedMatches.length > 0) {
+                const ids = disputedMatches.map((m) => m[1]).join(", ");
+                throw new ResearchGateError(
+                  `Scoring blocked: ${disputedMatches.length} finding(s) have DISPUTED attestations (${ids}). ` +
+                  `Resolve disputes before scoring — either fix the finding, change its evidence grade, or re-review.`
+                );
+              }
+            }
+          }
 
           const fp = candidatePath(root, slug);
           const parsed = readMarkdown<CandidateFrontmatter>(fp);
@@ -716,15 +760,40 @@ export function createServer(): Server {
           const reviewer = args?.reviewer as string;
           const findings = args?.findings as string[];
           const notes = (args?.notes as string) || "";
+          const attestations = (args?.attestations as Record<string, string>) || {};
           const fp = peerReviewPath(root);
 
-          const content = ["# Peer Review", "", `**Reviewer:** ${reviewer}`, `**Date:** ${today()}`, "", "## Findings", "", ...findings.map((f) => `- ${f}`), ...(notes ? ["", "## Notes", "", notes] : [])].join("\n");
+          // Layer 2: Check that HIGH-evidence findings have attestations
+          const allFindings = listFindings(root);
+          const highFindings = allFindings.filter((f) => f.frontmatter.evidence === "HIGH" || f.frontmatter.evidence === "MODERATE");
+          const unattested = highFindings.filter((f) => !attestations[f.frontmatter.id]);
+
+          const findingLines = findings.map((f) => {
+            const att = attestations[f.split(":")[0]?.trim()] || attestations[f] || "";
+            return att ? `- ${f} — **${att}**` : `- ${f}`;
+          });
+
+          const attestationLines: string[] = [];
+          if (Object.keys(attestations).length > 0) {
+            attestationLines.push("", "## Attestations", "");
+            for (const [findingId, att] of Object.entries(attestations)) {
+              attestationLines.push(`- **${findingId}**: ${att}`);
+            }
+          }
+
+          if (unattested.length > 0) {
+            attestationLines.push("", `> ⚠️ ${unattested.length} HIGH/MODERATE finding(s) without attestation: ${unattested.map((f) => f.frontmatter.id).join(", ")}`);
+            attestationLines.push("> These will be treated as SKIPPED at scoring time — evidence grade may be downgraded.");
+          }
+
+          const content = ["# Peer Review", "", `**Reviewer:** ${reviewer}`, `**Date:** ${today()}`, "", "## Findings", "", ...findingLines, ...attestationLines, ...(notes ? ["", "## Notes", "", notes] : [])].join("\n");
 
           fs.mkdirSync(path.dirname(fp), { recursive: true });
           fs.writeFileSync(fp, content + "\n");
           advancePhase(root, "reviewed", `Peer review by ${reviewer}`);
 
-          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked. Phase → reviewed` }] };
+          const warnings = unattested.length > 0 ? `\n⚠️ ${unattested.length} HIGH/MODERATE finding(s) lack attestation — will be downgraded at scoring.` : "";
+          return { content: [{ type: "text", text: `Peer review logged by ${reviewer} on ${today()}. Scoring is now unblocked. Phase → reviewed${warnings}` }] };
         }
 
         case "project_decide": {
@@ -802,7 +871,7 @@ export function createServer(): Server {
             rationale,
           ].join("\n");
 
-          const decisionPath = path.join(root, "DECISION.md");
+          const decisionPath = path.join(root, ".research", "DECISION.md");
           fs.writeFileSync(decisionPath, summaryContent + "\n");
 
           advancePhase(root, "decided", decision.substring(0, 100));
@@ -811,7 +880,7 @@ export function createServer(): Server {
           if (updatedFiles.length > 0) {
             response.push(`Updated existing decision files: ${updatedFiles.join(", ")}`);
           }
-          response.push(`Wrote DECISION.md`);
+          response.push(`Wrote .research/DECISION.md`);
           response.push("", decision);
 
           return { content: [{ type: "text", text: response.join("\n") }] };
@@ -836,7 +905,7 @@ export function createServer(): Server {
           const hasPeerReview = peerReviewExists(root);
 
           // Read DECISION.md if it exists
-          const decisionPath = path.join(root, "DECISION.md");
+          const decisionPath = path.join(root, ".research", "DECISION.md");
           const decisionContent = fs.existsSync(decisionPath)
             ? fs.readFileSync(decisionPath, "utf-8")
             : "";
@@ -1033,7 +1102,7 @@ export function createServer(): Server {
           brief.push("*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*");
 
           // Write to file
-          const briefPath = path.join(root, "BRIEF.md");
+          const briefPath = path.join(root, ".research", "BRIEF.md");
           fs.writeFileSync(briefPath, brief.join("\n") + "\n");
 
           // Auto-generate PDF alongside BRIEF.md
@@ -1042,7 +1111,7 @@ export function createServer(): Server {
             const renderScript = path.join(__dirname, "..", "src", "render-brief.py");
             if (fs.existsSync(renderScript)) {
               const { execFileSync } = require("child_process");
-              const pdfPath = path.join(root, "BRIEF.pdf");
+              const pdfPath = path.join(root, ".research", "BRIEF.pdf");
               execFileSync("python3", [renderScript, briefPath, "--brand", "research", "-o", pdfPath], {
                 stdio: ["pipe", "pipe", "pipe"],
                 encoding: "utf-8",
@@ -1065,7 +1134,7 @@ export function createServer(): Server {
           const hasPeerReview = peerReviewExists(root);
 
           // Read DECISION.md if it exists
-          const decisionPath = path.join(root, "DECISION.md");
+          const decisionPath = path.join(root, ".research", "DECISION.md");
           const decisionContent = fs.existsSync(decisionPath)
             ? fs.readFileSync(decisionPath, "utf-8")
             : "";
@@ -1288,7 +1357,7 @@ export function createServer(): Server {
           sections.push("Methodology");
 
           // Write REPORT.md
-          const reportPath = path.join(root, "REPORT.md");
+          const reportPath = path.join(root, ".research", "REPORT.md");
           fs.writeFileSync(reportPath, report.join("\n") + "\n");
 
           // Auto-generate PDF alongside REPORT.md
@@ -1297,7 +1366,7 @@ export function createServer(): Server {
             const renderScript = path.join(__dirname, "..", "src", "render-brief.py");
             if (fs.existsSync(renderScript)) {
               const { execFileSync } = require("child_process");
-              const pdfPath = path.join(root, "REPORT.pdf");
+              const pdfPath = path.join(root, ".research", "REPORT.pdf");
               execFileSync("python3", [renderScript, reportPath, "--brand", "research", "-o", pdfPath], {
                 stdio: ["pipe", "pipe", "pipe"],
                 encoding: "utf-8",

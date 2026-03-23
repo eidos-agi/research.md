@@ -1,0 +1,15 @@
+{
+  "tool": "project_get",
+  "fixture_id": "002-empty-session",
+  "input": {},
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "No projects registered this session. Use `project_set` with a project path."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

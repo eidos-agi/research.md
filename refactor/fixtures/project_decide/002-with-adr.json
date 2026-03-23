@@ -1,0 +1,20 @@
+{
+  "tool": "project_decide",
+  "fixture_id": "002-with-adr",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "decision": "Use DynamoDB for edge performance",
+    "rationale": "Speed advantage outweighs cost",
+    "adr_reference": "ADR-2026-99"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Decision recorded. Phase → decided\n\nWrote .research/DECISION.md\n\nUse DynamoDB for edge performance"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

@@ -1,0 +1,22 @@
+{
+  "tool": "candidate_score",
+  "fixture_id": "004-before-review",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "dynamodb-aws",
+    "scores": {
+      "Speed": 8
+    }
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Cannot score candidates — project is in 'locked' phase. Requires 'reviewed' or later."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

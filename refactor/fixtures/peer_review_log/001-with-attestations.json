@@ -1,0 +1,27 @@
+{
+  "tool": "peer_review_log",
+  "fixture_id": "001-with-attestations",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "reviewer": "Gemini 2.5 Pro",
+    "findings": [
+      "Postgres concurrency claim is well-supported",
+      "SQLite simplicity is obvious but understated"
+    ],
+    "attestations": {
+      "0003": "ATTESTED"
+    },
+    "notes": "Solid research. Consider adding latency benchmarks."
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Peer review logged by Gemini 2.5 Pro on 2026-03-22. Scoring is now unblocked. Phase → reviewed\n⚠️ 1 HIGH/MODERATE finding(s) lack attestation — will be downgraded at scoring."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

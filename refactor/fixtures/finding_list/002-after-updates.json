@@ -1,0 +1,17 @@
+{
+  "tool": "finding_list",
+  "fixture_id": "002-after-updates",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "ID   | Status     | Evidence   | Title\n---- | ---------- | ---------- | -----\n0001 | open       | LOW        | \n0002 | open       | UNVERIFIED | データベース比較\n0003 | open       | MODERATE   | Mod with hash"
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

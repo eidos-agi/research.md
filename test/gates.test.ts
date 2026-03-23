@@ -31,7 +31,7 @@ describe("gateCriteriaLocked", () => {
 
   it("fails when criteria are not locked", () => {
     writeMarkdown(
-      path.join(tmpDir, "evaluations", "decision-criteria.md"),
+      path.join(tmpDir, ".research", "evaluations", "decision-criteria.md"),
       { locked: false, locked_date: null },
       "\n## Decision Criteria\n\n| # | Criterion | Weight |\n"
     );
@@ -42,7 +42,7 @@ describe("gateCriteriaLocked", () => {
 
   it("passes when criteria are locked", () => {
     writeMarkdown(
-      path.join(tmpDir, "evaluations", "decision-criteria.md"),
+      path.join(tmpDir, ".research", "evaluations", "decision-criteria.md"),
       { locked: true, locked_date: "2026-03-18" },
       "\n## Decision Criteria\n\n| # | Criterion | Weight |\n"
     );
@@ -60,7 +60,7 @@ describe("gatePeerReviewExists", () => {
 
   it("passes when peer-review.md exists", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "evaluations", "peer-review.md"),
+      path.join(tmpDir, ".research", "evaluations", "peer-review.md"),
       "# Peer Review\n"
     );
     const result = gatePeerReviewExists(tmpDir);
@@ -77,7 +77,7 @@ describe("gateCandidateNoTbd", () => {
 
   it("fails when candidate has _TBD_ items", () => {
     writeMarkdown(
-      path.join(tmpDir, "candidates", "acme.md"),
+      path.join(tmpDir, ".research", "candidates", "acme.md"),
       { title: "Acme", verdict: "provisional" as const },
       "\n## Validation Checklist\n\n- [ ] Works: _TBD_\n"
     );
@@ -88,7 +88,7 @@ describe("gateCandidateNoTbd", () => {
 
   it("passes when all claims resolved", () => {
     writeMarkdown(
-      path.join(tmpDir, "candidates", "acme.md"),
+      path.join(tmpDir, ".research", "candidates", "acme.md"),
       { title: "Acme", verdict: "provisional" as const },
       "\n## Validation Checklist\n\n- [x] Works: Y\n"
     );
@@ -108,7 +108,7 @@ describe("runScoringGates", () => {
   it("checks all gates in sequence", () => {
     // Lock criteria
     writeMarkdown(
-      path.join(tmpDir, "evaluations", "decision-criteria.md"),
+      path.join(tmpDir, ".research", "evaluations", "decision-criteria.md"),
       { locked: true, locked_date: "2026-03-18" },
       "\n## Decision Criteria\n"
     );
@@ -121,18 +121,18 @@ describe("runScoringGates", () => {
   it("passes when all gates met", () => {
     // Lock criteria
     writeMarkdown(
-      path.join(tmpDir, "evaluations", "decision-criteria.md"),
+      path.join(tmpDir, ".research", "evaluations", "decision-criteria.md"),
       { locked: true, locked_date: "2026-03-18" },
       "\n## Decision Criteria\n"
     );
     // Add peer review
     fs.writeFileSync(
-      path.join(tmpDir, "evaluations", "peer-review.md"),
+      path.join(tmpDir, ".research", "evaluations", "peer-review.md"),
       "# Peer Review\n"
     );
     // Add candidate with no TBD
     writeMarkdown(
-      path.join(tmpDir, "candidates", "acme.md"),
+      path.join(tmpDir, ".research", "candidates", "acme.md"),
       { title: "Acme", verdict: "provisional" as const },
       "\n## Validation Checklist\n\n- [x] Works: Y\n"
     );

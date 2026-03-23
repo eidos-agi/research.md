@@ -1,0 +1,19 @@
+{
+  "tool": "candidate_add_claim",
+  "fixture_id": "002-second-claim",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "dynamodb-aws",
+    "claim": "Supports DynamoDB Streams"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Claim added to 'dynamodb-aws'."
+      }
+    ]
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

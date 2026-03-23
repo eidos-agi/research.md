@@ -1,0 +1,18 @@
+{
+  "tool": "criteria_lock",
+  "fixture_id": "002-already-locked",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Criteria already locked on 2026-03-22."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

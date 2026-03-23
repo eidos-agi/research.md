@@ -1,0 +1,21 @@
+{
+  "tool": "candidate_resolve_claim",
+  "fixture_id": "002-resolve-no",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "slug": "postgresql",
+    "claim_index": 1,
+    "result": "N"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Claim 1 in 'postgresql' marked N."
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

@@ -1,0 +1,19 @@
+{
+  "tool": "research_brief",
+  "fixture_id": "001-generate",
+  "input": {
+    "research_id": "1d5bfdfd-0961-46e4-ab21-7615f52cefc7",
+    "audience": "engineering team"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Research brief generated: BRIEF.md (61 lines)\n\n7 layers: One-liner → Key Findings → Candidates → Decision → Playbook → Design Rules → Methodology\n\nAudience: engineering team\nPDF: BRIEF.pdf generated alongside BRIEF.md"
+      }
+    ]
+  },
+  "side_effects": {},
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

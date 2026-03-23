@@ -57,8 +57,8 @@ export function checkIntegrity(
   // ── Phase vs decision files ──────────────────────────────────────────
   if (phaseIdx >= PHASE_ORDER.indexOf("decided")) {
     // Check for decision files in decisions/ folder
-    const decisionsDir = path.join(projectRoot, "decisions");
-    const decisionFile = path.join(projectRoot, "DECISION.md");
+    const decisionsDir = path.join(projectRoot, ".research", "decisions");
+    const decisionFile = path.join(projectRoot, ".research", "DECISION.md");
     let hasDecision = false;
     let hasStaleDecision = false;
 

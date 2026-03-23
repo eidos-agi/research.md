@@ -1,0 +1,21 @@
+{
+  "tool": "candidate_resolve_claim",
+  "fixture_id": "006-not-found",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "nonexistent",
+    "claim_index": 1,
+    "result": "Y"
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Candidate 'nonexistent' not found."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

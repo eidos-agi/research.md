@@ -1,4 +1,37 @@
+# Node (TypeScript original)
 node_modules/
 dist/
 *.js.map
+*.tsbuildinfo
+
+# Python (new primary)
 __pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+*.egg
+*.whl
+
+.venv/
+venv/
+env/
+.env
+.env.local
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+.DS_Store
+Thumbs.db
+
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+.mcp.json

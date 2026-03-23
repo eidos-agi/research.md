@@ -38,9 +38,16 @@ Or for Claude Code:
 claude mcp add research-md --scope user -- node /absolute/path/to/research.md/dist/index.js
 ```
 
+## Trilogy conventions
+
+research.md follows shared conventions with ike.md and visionlog.md. See [CONVENTIONS.md](https://github.com/eidos-agi/ike.md/blob/main/CONVENTIONS.md) for the full standard: dot-dirs, git commitment, GUID routing, monorepo patterns.
+
+- Config lives at `.research/research.json` (committed to git)
+- Tools: `project_init` (new project) and `project_set` (register existing for session)
+
 ## Targeting pattern: project_set + research_id
 
-Every tool call requires a `research_id` -- the GUID from the project's `research-md.json`. This is an in-memory mapping that does not persist across MCP server restarts.
+Every tool call requires a `research_id` -- the GUID from the project's `.research/research.json`. This is an in-memory mapping that does not persist across MCP server restarts.
 
 **Session startup:**
 
@@ -56,13 +63,14 @@ If you call a tool without a valid `research_id`, the server tells you exactly h
 
 ```
 my-research/
-  research-md.json             <- config with project GUID
-  findings/                    <- NNNN-slug.md
-  candidates/                  <- slug.md
-  evaluations/
-    decision-criteria.md       <- criteria table (lock before scoring)
-    peer-review.md             <- reviewer log (required before scoring)
-    scoring-matrix.md          <- generated from locked criteria + candidates
+  .research/
+    research.json              <- config with project GUID (commit this)
+    findings/                  <- NNNN-slug.md
+    candidates/                <- slug.md
+    evaluations/
+      decision-criteria.md     <- criteria table (lock before scoring)
+      peer-review.md           <- reviewer log (required before scoring)
+      scoring-matrix.md        <- generated from locked criteria + candidates
 ```
 
 ### Multi-project root
@@ -71,25 +79,28 @@ A root directory holds multiple research projects. Each subproject is a full pro
 
 ```
 research-root/
-  research-md.json             <- root config (lists subprojects)
+  .research/
+    research.json              <- root config (lists subprojects)
   vendor-selection/
-    research-md.json           <- subproject GUID
-    findings/
-    candidates/
-    evaluations/
+    .research/
+      research.json            <- subproject GUID
+      findings/
+      candidates/
+      evaluations/
   platform-comparison/
-    research-md.json           <- subproject GUID
-    findings/
-    candidates/
-    evaluations/
+    .research/
+      research.json            <- subproject GUID
+      findings/
+      candidates/
+      evaluations/
 ```
 
 Initialize a root and add subprojects:
 
 ```
-init { path: "/path/to/root", root: true }
-init { path: "/path/to/root", subproject: "vendor-selection" }
-init { path: "/path/to/root", subproject: "platform-comparison" }
+project_init { path: "/path/to/root", root: true }
+project_init { path: "/path/to/root", subproject: "vendor-selection" }
+project_init { path: "/path/to/root", subproject: "platform-comparison" }
 ```
 
 When you `project_set` a root, all subprojects are registered automatically. Use each subproject's `research_id` for tool calls -- you cannot operate on the root directly.

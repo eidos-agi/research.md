@@ -1,0 +1,22 @@
+{
+  "tool": "candidate_score",
+  "fixture_id": "005-with-tbd",
+  "input": {
+    "research_id": "a44a32ef-cb41-457e-b752-b488be7eeddf",
+    "slug": "cockroachdb",
+    "scores": {
+      "Speed": 7
+    }
+  },
+  "output": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Candidate 'cockroachdb' has unresolved _TBD_ items in its validation checklist. Resolve all claims before scoring."
+      }
+    ],
+    "isError": true
+  },
+  "source_language": "typescript",
+  "captured_at": "2026-03-22"
+}

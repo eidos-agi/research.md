@@ -3,6 +3,9 @@ import * as path from "path";
 import matter from "gray-matter";
 import { safePath } from "./security";
 
+/** All artifact directories live under .research/ alongside config. */
+const RESEARCH_DIR = ".research";
+
 export interface FindingFrontmatter {
   id: string;
   title: string;
@@ -56,7 +59,7 @@ export function writeMarkdown<T extends object>(
 // ── Findings ────────────────────────────────────────────────────────────────
 
 export function listFindings(projectRoot: string): ParsedFile<FindingFrontmatter>[] {
-  const dir = safePath(projectRoot, "findings");
+  const dir = safePath(projectRoot, RESEARCH_DIR, "findings");
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
@@ -75,13 +78,13 @@ export function nextFindingId(projectRoot: string): string {
 }
 
 export function findingPath(projectRoot: string, id: string, slug: string): string {
-  return safePath(projectRoot, "findings", `${id}-${slug}.md`);
+  return safePath(projectRoot, RESEARCH_DIR, "findings", `${id}-${slug}.md`);
 }
 
 // ── Candidates ───────────────────────────────────────────────────────────────
 
 export function listCandidates(projectRoot: string): ParsedFile<CandidateFrontmatter>[] {
-  const dir = safePath(projectRoot, "candidates");
+  const dir = safePath(projectRoot, RESEARCH_DIR, "candidates");
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
@@ -91,13 +94,13 @@ export function listCandidates(projectRoot: string): ParsedFile<CandidateFrontma
 }
 
 export function candidatePath(projectRoot: string, slug: string): string {
-  return safePath(projectRoot, "candidates", `${slug}.md`);
+  return safePath(projectRoot, RESEARCH_DIR, "candidates", `${slug}.md`);
 }
 
 // ── Decision Criteria ────────────────────────────────────────────────────────
 
 export function decisionCriteriaPath(projectRoot: string): string {
-  return safePath(projectRoot, "evaluations", "decision-criteria.md");
+  return safePath(projectRoot, RESEARCH_DIR, "evaluations", "decision-criteria.md");
 }
 
 export function loadDecisionCriteria(
@@ -111,7 +114,7 @@ export function loadDecisionCriteria(
 // ── Peer Review ───────────────────────────────────────────────────────────────
 
 export function peerReviewPath(projectRoot: string): string {
-  return safePath(projectRoot, "evaluations", "peer-review.md");
+  return safePath(projectRoot, RESEARCH_DIR, "evaluations", "peer-review.md");
 }
 
 export function peerReviewExists(projectRoot: string): boolean {
@@ -121,7 +124,7 @@ export function peerReviewExists(projectRoot: string): boolean {
 // ── Scoring Matrix ────────────────────────────────────────────────────────────
 
 export function scoringMatrixPath(projectRoot: string): string {
-  return safePath(projectRoot, "evaluations", "scoring-matrix.md");
+  return safePath(projectRoot, RESEARCH_DIR, "evaluations", "scoring-matrix.md");
 }
 
 // ── Section extraction ────────────────────────────────────────────────────────
