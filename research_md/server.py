@@ -393,7 +393,8 @@ def candidate_score(research_id: str, slug: str, scores: dict, notes: str = "") 
     parsed = read_markdown(fp)
     total = sum(scores.values())
     score_lines = "\n".join(f"| {c} | {s}/10 |" for c, s in scores.items())
-    scoring_section = f"\n## Scores\n\n| Criterion | Score |\n|-----------|-------|\n{score_lines}\n| **Total** | **{total}** |\n{f'\\n**Notes:** {notes}\\n' if notes else ''}"
+    notes_section = f"\n**Notes:** {notes}\n" if notes else ""
+    scoring_section = f"\n## Scores\n\n| Criterion | Score |\n|-----------|-------|\n{score_lines}\n| **Total** | **{total}** |\n{notes_section}"
 
     new_content = re.sub(r"## Scoring[\s\S]*", f"## Scoring{scoring_section}", parsed.content)
     write_markdown(fp, parsed.frontmatter, new_content)
