@@ -19,7 +19,7 @@ from .files import (
     list_candidates, candidate_path, load_decision_criteria, decision_criteria_path,
     peer_review_path, peer_review_exists, scoring_matrix_path, extract_section,
 )
-from .gates import run_scoring_gates
+from .gates import run_scoring_gates, run_evidence_gates, gate_vendor_only_advisory
 from .integrity import check_integrity
 
 INSTRUCTIONS = """research.md is the decision forge — evidence-graded, phase-gated, peer-reviewed decisions.
@@ -68,6 +68,22 @@ def _get_project(research_id):
             )
         raise ResearchNotFoundError("Project", research_id)
     return resolved
+
+
+def _format_finding_status(f) -> str:
+    """Format a single finding for status display, with evidence gate warnings."""
+    fm = f.frontmatter
+    base = f"  {fm['id']} [{fm['status']}] [{fm['evidence']}] {fm['title']}"
+    if fm.get("evidence") == "HIGH":
+        from .gates import run_evidence_gates
+        gate = run_evidence_gates(fm)
+        if not gate["passed"]:
+            base += " ⚠ GATE FAIL"
+    sources = fm.get("sources", 0)
+    src_count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
+    if isinstance(sources, list) and src_count > 0:
+        base += f" ({src_count} sources)"
+    return base
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
@@ -157,7 +173,7 @@ def status(research_id: str) -> str:
         f"**TBD items remaining:** {tbd_count}",
         "",
         f"**Findings ({len(findings)}):**",
-        *[f"  {f.frontmatter['id']} [{f.frontmatter['status']}] [{f.frontmatter['evidence']}] {f.frontmatter['title']}" for f in findings],
+        *[_format_finding_status(f) for f in findings],
         "",
         f"**Candidates ({len(candidates)}):**",
         *[f"  {c.frontmatter['title']} — {c.frontmatter['verdict']}" for c in candidates],
@@ -181,12 +197,37 @@ def status(research_id: str) -> str:
 # ── Findings ──────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def finding_create(research_id: str, title: str, claim: str, evidence: str = "UNVERIFIED", source: str = "unspecified") -> str:
-    """Create a new finding with evidence grade and source."""
+def finding_create(
+    research_id: str,
+    title: str,
+    claim: str,
+    evidence: str = "UNVERIFIED",
+    source: str = "unspecified",
+    sources: list[dict] | None = None,
+    disconfirmation: str | None = None,
+) -> str:
+    """Create a new finding with evidence grade and source.
+
+    Args:
+        research_id: Project GUID from .research/research.json 'id' field.
+        title: Short title for the finding.
+        claim: The factual claim this finding asserts.
+        evidence: Evidence grade — HIGH (confirmed, 2+ sources + disconfirmation), MODERATE (credible, 1+ source with hash), LOW (single source), UNVERIFIED (not yet investigated).
+        source: Legacy single-source string. Prefer 'sources' array for new findings.
+        sources: Array of source objects: [{"text": "url or description (content_hash:abcd1234)", "tier": "PRIMARY|EXPERT|SECONDARY|VENDOR"}]. Required for HIGH evidence.
+        disconfirmation: What you searched for to disprove this claim and what you found. Required for HIGH evidence.
+    """
     resolved = _get_project(research_id)
     root = resolved.projectRoot
 
-    if evidence in ("HIGH", "MODERATE") and "content_hash:" not in source:
+    # Build the sources list from either new array or legacy string
+    source_entries = sources or []
+    if not source_entries and source != "unspecified":
+        source_entries = [{"text": source, "tier": "SECONDARY"}]
+
+    # Layer 1: Evidence integrity — HIGH/MODERATE require proof of source consultation
+    all_source_texts = " ".join(s.get("text", "") for s in source_entries) if source_entries else source
+    if evidence in ("HIGH", "MODERATE") and "content_hash:" not in all_source_texts:
         raise ResearchValidationError(
             f'Evidence grade "{evidence}" requires proof of source consultation. '
             'Include a content_hash in your source field to prove you fetched and read the source material. '
@@ -195,15 +236,55 @@ def finding_create(research_id: str, title: str, claim: str, evidence: str = "UN
             'If your evidence is based on reasoning rather than a fetched source, use evidence: "LOW" or "UNVERIFIED" instead.'
         )
 
-    id = next_finding_id(root)
-    slug = sanitize_slug(title)
-    fp = finding_path(root, id, slug)
+    # Layer 2: Evidence gates — HIGH requires triangulation + disconfirmation
+    frontmatter_preview = {
+        "evidence": evidence,
+        "sources": source_entries,
+        "disconfirmation": disconfirmation,
+    }
+    gate_result = run_evidence_gates(frontmatter_preview)
+    if not gate_result["passed"]:
+        raise ResearchGateError(gate_result["error"])
 
-    frontmatter = {"id": id, "title": title, "status": "open", "evidence": evidence, "sources": 0 if source == "unspecified" else 1, "created": _today()}
-    content = f"\n## Claim\n\n{claim}\n\n## Supporting Evidence\n\n> **Evidence: [{evidence}]** — {source}, retrieved {_today()}\n\n## Caveats\n\nNone identified yet.\n"
+    fid = next_finding_id(root)
+    slug = sanitize_slug(title)
+    fp = finding_path(root, fid, slug)
+
+    frontmatter = {
+        "id": fid, "title": title, "status": "open", "evidence": evidence,
+        "sources": source_entries if source_entries else (0 if source == "unspecified" else 1),
+        "disconfirmation": disconfirmation,
+        "created": _today(),
+    }
+
+    # Build evidence section
+    if source_entries:
+        evidence_lines = []
+        for s in source_entries:
+            tier_tag = f" [{s.get('tier', 'SECONDARY')}]" if s.get("tier") else ""
+            evidence_lines.append(f"> **Source{tier_tag}:** {s['text']}, retrieved {_today()}")
+        evidence_text = "\n>\n".join(evidence_lines)
+    else:
+        evidence_text = f"> **Evidence: [{evidence}]** — {source}, retrieved {_today()}"
+
+    disconfirmation_section = ""
+    if disconfirmation:
+        disconfirmation_section = f"\n\n## Disconfirmation Search\n\n{disconfirmation}"
+
+    content = f"\n## Claim\n\n{claim}\n\n## Supporting Evidence\n\n{evidence_text}{disconfirmation_section}\n\n## Caveats\n\nNone identified yet.\n"
 
     write_markdown(fp, frontmatter, content)
-    return f"Finding created: findings/{id}-{slug}.md\nID: {id} | Evidence: {evidence}"
+
+    # Soft advisories
+    advisories = []
+    vendor_warning = gate_vendor_only_advisory(frontmatter)
+    if vendor_warning:
+        advisories.append(vendor_warning)
+
+    result = f"Finding created: findings/{fid}-{slug}.md\nID: {fid} | Evidence: {evidence}"
+    if advisories:
+        result += "\n\n" + "\n".join(f"⚠ {a}" for a in advisories)
+    return result
 
 
 @mcp.tool()
@@ -218,8 +299,26 @@ def finding_list(research_id: str) -> str:
 
 
 @mcp.tool()
-def finding_update(research_id: str, id: str, status: str | None = None, evidence: str | None = None, claim: str | None = None) -> str:
-    """Update a finding's status, evidence grade, or claim."""
+def finding_update(
+    research_id: str,
+    id: str,
+    status: str | None = None,
+    evidence: str | None = None,
+    claim: str | None = None,
+    sources: list[dict] | None = None,
+    disconfirmation: str | None = None,
+) -> str:
+    """Update a finding's status, evidence grade, claim, sources, or disconfirmation.
+
+    Args:
+        research_id: Project GUID.
+        id: Finding ID (e.g. "0001" or "1").
+        status: New status (open, confirmed, refuted, superseded).
+        evidence: New evidence grade (HIGH, MODERATE, LOW, UNVERIFIED). HIGH requires 2+ sources and a disconfirmation search.
+        claim: Updated claim text.
+        sources: Replace sources array: [{"text": "url (content_hash:abc12345)", "tier": "PRIMARY|EXPERT|SECONDARY|VENDOR"}].
+        disconfirmation: What you searched for to disprove this claim and what you found.
+    """
     resolved = _get_project(research_id)
     padded_id = id.zfill(4)
     findings = list_findings(resolved.projectRoot)
@@ -232,13 +331,52 @@ def finding_update(research_id: str, id: str, status: str | None = None, evidenc
         updated["status"] = status
     if evidence:
         updated["evidence"] = evidence
+    if sources is not None:
+        updated["sources"] = sources
+    if disconfirmation is not None:
+        updated["disconfirmation"] = disconfirmation
+
+    # Evidence gates — enforce when upgrading to HIGH
+    target_evidence = updated.get("evidence", "UNVERIFIED")
+    if target_evidence == "HIGH":
+        gate_result = run_evidence_gates(updated)
+        if not gate_result["passed"]:
+            raise ResearchGateError(gate_result["error"])
 
     content = finding.content
     if claim:
         content = re.sub(r"## Claim\n\n[\s\S]*?\n\n## Supporting", f"## Claim\n\n{claim}\n\n## Supporting", content)
 
+    # Update disconfirmation section in markdown body
+    if disconfirmation is not None:
+        if "## Disconfirmation Search" in content:
+            content = re.sub(
+                r"## Disconfirmation Search\n\n[\s\S]*?(?=\n\n## |\Z)",
+                f"## Disconfirmation Search\n\n{disconfirmation}",
+                content,
+            )
+        else:
+            # Insert before Caveats, or append
+            if "## Caveats" in content:
+                content = content.replace(
+                    "## Caveats",
+                    f"## Disconfirmation Search\n\n{disconfirmation}\n\n## Caveats",
+                )
+            else:
+                content += f"\n\n## Disconfirmation Search\n\n{disconfirmation}\n"
+
     write_markdown(finding.filePath, updated, content)
-    return f"Finding {padded_id} updated."
+
+    # Soft advisories
+    advisories = []
+    vendor_warning = gate_vendor_only_advisory(updated)
+    if vendor_warning:
+        advisories.append(vendor_warning)
+
+    result = f"Finding {padded_id} updated."
+    if advisories:
+        result += "\n\n" + "\n".join(f"⚠ {a}" for a in advisories)
+    return result
 
 
 # ── Candidates ────────────────────────────────────────────────────────────────
@@ -258,7 +396,20 @@ def candidate_create(research_id: str, title: str, slug: str | None = None, desc
     content = f"\n## What It Is\n\n{desc}\n\n## Validation Checklist\n\n- [ ] Claim 1: _TBD_\n\n## Scoring\n\n_Not yet scored._\n"
 
     write_markdown(fp, frontmatter, content)
-    return f"Candidate created: candidates/{s}.md"
+
+    result = f"Candidate created: candidates/{s}.md"
+
+    # Landscape scan advisory — nudge on first candidate
+    existing = list_candidates(resolved.projectRoot)
+    if len(existing) <= 1:
+        result += (
+            "\n\n💡 This is the first candidate. Before evaluating options, have you documented "
+            "the full landscape? Consider a finding tagged 'landscape' listing all known "
+            "alternatives — including ones you've decided not to evaluate — so the research "
+            "record shows the aperture was wide before narrowing."
+        )
+
+    return result
 
 
 @mcp.tool()

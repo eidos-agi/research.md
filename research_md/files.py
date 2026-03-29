@@ -28,6 +28,9 @@ class _GrayMatterDumper(yaml.SafeDumper):
 def _str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
     if re.match(r"^\d{4}-\d{2}-\d{2}$", data):
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
+    # Quote strings that would confuse YAML parsers (colons, special chars, multiline)
+    if any(ch in data for ch in (":", "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`", "\n")):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
@@ -71,13 +74,27 @@ def write_markdown(file_path: str, frontmatter: dict[str, Any], content: str) ->
         default_flow_style=False, sort_keys=False, allow_unicode=True,
         indent=2,
     )
-    # Match gray-matter list indentation
+    # Match gray-matter list indentation for simple lists.
+    # For nested structures (dicts-in-lists), YAML's default output is correct.
     lines = fm_str.split("\n")
     fixed = []
-    for line in lines:
-        if line.startswith("- "):
-            fixed.append("  " + line)
+    in_nested_list = False
+    for i, line in enumerate(lines):
+        if line.startswith("- ") and not line.startswith("- {"):
+            # Check if next non-empty line is a continuation (dict key at same indent)
+            next_lines = [l for l in lines[i+1:i+3] if l.strip()]
+            has_nested_keys = any(l.startswith("  ") and not l.startswith("  -") for l in next_lines)
+            if has_nested_keys:
+                in_nested_list = True
+                fixed.append(line)
+            else:
+                in_nested_list = False
+                fixed.append("  " + line)
+        elif in_nested_list and line.startswith("  ") and not line.startswith("- "):
+            fixed.append(line)
         else:
+            if not line.startswith("  ") and not line.startswith("- "):
+                in_nested_list = False
             fixed.append(line)
     fm_str = "\n".join(fixed)
 
