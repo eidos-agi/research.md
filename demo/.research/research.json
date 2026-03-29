@@ -1,0 +1,17 @@
+{
+  "id": "demo-00000000-0000-0000-0000-000000000000",
+  "version": "0.3.0",
+  "projectName": "demo-database-selection",
+  "question": "Which database should a solo developer use for a side project with <1000 users?",
+  "context": "Evaluating lightweight databases for a personal SaaS. Must be easy to operate solo, low cost, and handle basic CRUD with occasional analytical queries.",
+  "phase": "decided",
+  "created": "2026-03-15",
+  "transitions": [
+    {"date": "2026-03-15", "phase": "research"},
+    {"date": "2026-03-17", "phase": "criteria"},
+    {"date": "2026-03-17", "phase": "locked"},
+    {"date": "2026-03-18", "phase": "reviewed"},
+    {"date": "2026-03-18", "phase": "scored"},
+    {"date": "2026-03-19", "phase": "decided", "note": "SQLite selected"}
+  ]
+}
