@@ -39,7 +39,11 @@ jobs:
       - name: Run fixture verification
         run: python refactor/verify-fixtures.py || true
       - name: Run tests
-        run: pytest tests/ -v || echo "No pytest tests yet"
+        run: pytest tests/ -v
+      - name: Audit dependencies
+        run: |
+          pip install pip-audit
+          pip-audit
 
   build-verify:
     runs-on: ubuntu-latest
