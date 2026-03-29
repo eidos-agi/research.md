@@ -907,7 +907,9 @@ def research_report(research_id: str) -> str:
         report.extend([f"### {label} Evidence ({len(group)})", ""])
         for f in group:
             claim_text = extract_section(f.content, "Claim") or ""
-            source_text = f"{f.frontmatter.get('sources', 0)} source(s)"
+            raw_sources = f.frontmatter.get("sources", 0)
+            src_n = len(raw_sources) if isinstance(raw_sources, list) else (raw_sources if isinstance(raw_sources, int) else 0)
+            source_text = f"{src_n} source(s)"
             report.extend([
                 f"#### {f.frontmatter['id']}: {f.frontmatter['title']}", "",
                 f"**Evidence:** {f.frontmatter['evidence']} | **Status:** {f.frontmatter['status']} | **Sources:** {source_text}", "",
