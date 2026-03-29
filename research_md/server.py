@@ -208,6 +208,16 @@ def finding_create(
 ) -> str:
     """Create a new finding with evidence grade and source.
 
+    IMPORTANT: Research findings should be grounded in web research, not just reasoning.
+    Before creating a finding, search the web for evidence. Use WebSearch/WebFetch to find
+    primary sources, then include them in the sources array with content hashes.
+
+    Evidence grade ladder:
+      UNVERIFIED — claim recorded, not yet investigated. Go do web research.
+      LOW — single source or anecdotal. Search for more sources to strengthen.
+      MODERATE — credible source with content_hash proof. Search for disconfirming evidence.
+      HIGH — 2+ independent sources + documented disconfirmation search. This is confirmed.
+
     Args:
         research_id: Project GUID from .research/research.json 'id' field.
         title: Short title for the finding.
@@ -282,6 +292,16 @@ def finding_create(
         advisories.append(vendor_warning)
 
     result = f"Finding created: findings/{fid}-{slug}.md\nID: {fid} | Evidence: {evidence}"
+
+    # Web research nudge — prompt agents to actually search the web
+    if not source_entries and evidence in ("UNVERIFIED", "LOW"):
+        advisories.append(
+            "This finding has no sources yet. Use WebSearch and WebFetch to find "
+            "supporting evidence, then call finding_update with a sources array to "
+            "strengthen the evidence grade. Research findings should be grounded in "
+            "web research, not just reasoning."
+        )
+
     if advisories:
         result += "\n\n" + "\n".join(f"⚠ {a}" for a in advisories)
     return result
@@ -309,6 +329,12 @@ def finding_update(
     disconfirmation: str | None = None,
 ) -> str:
     """Update a finding's status, evidence grade, claim, sources, or disconfirmation.
+
+    Evidence grade ladder (each level has enforced requirements):
+      UNVERIFIED → LOW → MODERATE (needs content_hash) → HIGH (needs 2+ sources + disconfirmation)
+
+    To upgrade a finding to HIGH: add 2+ sources with content hashes, then add a
+    disconfirmation search documenting what you looked for to disprove the claim.
 
     Args:
         research_id: Project GUID.
@@ -374,6 +400,16 @@ def finding_update(
         advisories.append(vendor_warning)
 
     result = f"Finding {padded_id} updated."
+
+    # Web research nudge — if evidence is still low and no sources
+    updated_sources = updated.get("sources", 0)
+    has_sources = (isinstance(updated_sources, list) and len(updated_sources) > 0) or (isinstance(updated_sources, int) and updated_sources > 0)
+    if not has_sources and target_evidence in ("UNVERIFIED", "LOW"):
+        advisories.append(
+            "This finding still has no sources. Use WebSearch and WebFetch to find "
+            "supporting evidence, then call finding_update with a sources array."
+        )
+
     if advisories:
         result += "\n\n" + "\n".join(f"⚠ {a}" for a in advisories)
     return result

@@ -11,9 +11,33 @@ This is true for two categories of mistakes:
 
 Both categories share a root cause: the tooling trusts the agent to do the right thing. research.md doesn't.
 
-## Two Layers of Enforcement
+## Three Layers of Enforcement
 
-### Layer 1: Process Gates
+### Layer 1: Evidence Gates
+
+Research findings have an evidence grade that determines how much weight they carry. The grades have enforced structural meaning:
+
+| Grade | Meaning | Requirements |
+|-------|---------|-------------|
+| `UNVERIFIED` | Claim recorded, not yet investigated | None — but the tool nudges toward web research |
+| `LOW` | Single source or anecdotal | At least a coherent argument; tool nudges toward more sources |
+| `MODERATE` | Credible source, verified consultation | 1+ source with `content_hash:` proof of retrieval |
+| `HIGH` | Confirmed — validated by evidence | 2+ independent sources + documented disconfirmation search |
+
+The `HIGH` grade is gated by two hard checks:
+
+| Gate | Tool | Prerequisite |
+|------|------|-------------|
+| Source triangulation | `finding_create`, `finding_update` | `sources` array must have 2+ entries |
+| Disconfirmation search | `finding_create`, `finding_update` | `disconfirmation` field must be non-empty |
+
+An agent cannot mark a finding as `HIGH` from a single blog post. It cannot skip the red-team step of searching for evidence against its own claim. These are the two most common evidence failures in AI-assisted research.
+
+Sources carry a quality tier (`PRIMARY`, `EXPERT`, `SECONDARY`, `VENDOR`) as metadata. No hard gate on tier — source classification requires judgment — but the tool warns when all sources are vendor-produced.
+
+Additionally, when a finding is created without any sources, the tool nudges the agent to do web research rather than relying on reasoning alone.
+
+### Layer 2: Process Gates
 
 Certain research operations have prerequisites. research.md encodes these as hard failures:
 
@@ -27,7 +51,7 @@ These aren't warnings. The tool returns an error with `isError: true`. The agent
 
 The gates exist because research quality degrades silently. An unreviewed scoring matrix looks identical to a reviewed one. A score assigned before criteria were locked might have been anchored to a preferred candidate. The output looks fine. The process was wrong. By the time anyone notices, the decision is made.
 
-### Layer 2: GUID-Based Project Targeting
+### Layer 3: GUID-Based Project Targeting
 
 Every research project gets a UUID at initialization:
 
@@ -144,9 +168,10 @@ The key divergence is project targeting:
 
 ## Summary
 
-research.md enforces two things:
+research.md enforces three things:
 
-1. **You can't skip process.** The gates are in the code, not in a conventions doc.
-2. **You can't hit the wrong target.** The GUID is a targeting lock that requires intentional acquisition.
+1. **You can't fake evidence.** HIGH requires 2+ sources and a disconfirmation search. The tool nudges toward web research at every step.
+2. **You can't skip process.** Scoring gates are in the code, not in a conventions doc.
+3. **You can't hit the wrong target.** The GUID is a targeting lock that requires intentional acquisition.
 
-Both follow the same principle: make the right thing automatic and the wrong thing impossible. Advisory rules get skipped. Tooling doesn't.
+All three follow the same principle: make the right thing automatic and the wrong thing impossible. Advisory rules get skipped. Tooling doesn't.
