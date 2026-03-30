@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-03-29
+
+### Fixed
+- Ruff lint and format issues (unused import, ambiguous variable name, dead code).
+- Missed HIGH/MODERATE references in DESIGN.md and demo peer-review.
+
 ## [0.4.0] - 2026-03-29
 
 ### Changed
