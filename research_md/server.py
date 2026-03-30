@@ -6,18 +6,38 @@ from datetime import date
 from mcp.server.fastmcp import FastMCP
 
 from .config import (
-    resolve_by_guid, load_config, init_project, init_subproject, init_root,
-    register_project, list_registered, advance_phase, require_phase,
-    _guid_to_path, _is_root, PHASE_ORDER,
+    resolve_by_guid,
+    load_config,
+    init_project,
+    init_subproject,
+    init_root,
+    register_project,
+    list_registered,
+    advance_phase,
+    require_phase,
+    _guid_to_path,
+    _is_root,
 )
 from .security import sanitize_slug
 from .errors import (
-    ResearchNotFoundError, ResearchGateError, ResearchValidationError, format_error,
+    ResearchNotFoundError,
+    ResearchGateError,
+    ResearchValidationError,
 )
 from .files import (
-    list_findings, next_finding_id, finding_path, read_markdown, write_markdown,
-    list_candidates, candidate_path, load_decision_criteria, decision_criteria_path,
-    peer_review_path, peer_review_exists, scoring_matrix_path, extract_section,
+    list_findings,
+    next_finding_id,
+    finding_path,
+    read_markdown,
+    write_markdown,
+    list_candidates,
+    candidate_path,
+    load_decision_criteria,
+    decision_criteria_path,
+    peer_review_path,
+    peer_review_exists,
+    scoring_matrix_path,
+    extract_section,
 )
 from .gates import run_scoring_gates, run_evidence_gates, gate_vendor_only_advisory
 from .integrity import check_integrity
@@ -76,17 +96,23 @@ def _format_finding_status(f) -> str:
     base = f"  {fm['id']} [{fm['status']}] [{fm['evidence']}] {fm['title']}"
     if fm.get("evidence") == "CONFIRMED":
         from .gates import run_evidence_gates
+
         gate = run_evidence_gates(fm)
         if not gate["passed"]:
             base += " ⚠ GATE FAIL"
     sources = fm.get("sources", 0)
-    src_count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
+    src_count = (
+        len(sources)
+        if isinstance(sources, list)
+        else (sources if isinstance(sources, int) else 0)
+    )
     if isinstance(sources, list) and src_count > 0:
         base += f" ({src_count} sources)"
     return base
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
+
 
 @mcp.tool()
 def project_set(path: str) -> str:
@@ -98,8 +124,12 @@ def project_set(path: str) -> str:
     if info.get("context"):
         lines.append(f"\n**Context:**\n{info['context']}")
     if info.get("isRoot"):
-        lines.append(f"\nThis is a multi-project root with {len(info['projects'])} subproject(s).")
-        lines.append("Subprojects also registered. Read each subproject's research-md.json for its research_id.")
+        lines.append(
+            f"\nThis is a multi-project root with {len(info['projects'])} subproject(s)."
+        )
+        lines.append(
+            "Subprojects also registered. Read each subproject's research-md.json for its research_id."
+        )
         lines.append(f"\nSubprojects: {', '.join(info['projects'])}")
     lines.append("\nUse the 'id' field as research_id on all subsequent tool calls.")
     return "\n".join(lines)
@@ -116,7 +146,14 @@ def project_get() -> str:
 
 
 @mcp.tool()
-def project_init(path: str, name: str | None = None, root: bool = False, subproject: str | None = None, question: str | None = None, context: str | None = None) -> str:
+def project_init(
+    path: str,
+    name: str | None = None,
+    root: bool = False,
+    subproject: str | None = None,
+    question: str | None = None,
+    context: str | None = None,
+) -> str:
     """Initialize a new research project with folder structure and GUID. IMPORTANT: Always provide question and context — they are stored in .research/research.json so any future session can understand the research without prior conversation history."""
     if root:
         init_root(path)
@@ -138,9 +175,13 @@ def project_init(path: str, name: str | None = None, root: bool = False, subproj
     config = load_config(path)
     warnings = []
     if not question:
-        warnings.append("WARNING: No research question provided. Future sessions won't know what this research is about.")
+        warnings.append(
+            "WARNING: No research question provided. Future sessions won't know what this research is about."
+        )
     if not context:
-        warnings.append("WARNING: No context brief provided. Future sessions will lack the background needed to continue this research.")
+        warnings.append(
+            "WARNING: No context brief provided. Future sessions will lack the background needed to continue this research."
+        )
     warn_text = "\n\n" + "\n".join(warnings) if warnings else ""
     return f"Research project initialized at {path}\nID: {config['id'] if config else 'unknown'}\n\nAll artifacts stored under .research/{warn_text}"
 
@@ -166,21 +207,29 @@ def status(research_id: str) -> str:
     if pc.get("context"):
         lines.extend(["**Context:**", pc["context"], ""])
 
-    lines.extend([
-        f"**Phase:** {pc['phase']}",
-        f"**Criteria locked:** {'Yes (' + str(criteria.frontmatter.get('locked_date', '')) + ')' if criteria and criteria.frontmatter.get('locked') else 'No'}",
-        f"**Peer review logged:** {'Yes' if has_peer_review else 'No'}",
-        f"**TBD items remaining:** {tbd_count}",
-        "",
-        f"**Findings ({len(findings)}):**",
-        *[_format_finding_status(f) for f in findings],
-        "",
-        f"**Candidates ({len(candidates)}):**",
-        *[f"  {c.frontmatter['title']} — {c.frontmatter['verdict']}" for c in candidates],
-        "",
-        "**Phase history:**",
-        *[f"  {t['date']} → {t['phase']}{' (' + t['note'] + ')' if t.get('note') else ''}" for t in pc["transitions"]],
-    ])
+    lines.extend(
+        [
+            f"**Phase:** {pc['phase']}",
+            f"**Criteria locked:** {'Yes (' + str(criteria.frontmatter.get('locked_date', '')) + ')' if criteria and criteria.frontmatter.get('locked') else 'No'}",
+            f"**Peer review logged:** {'Yes' if has_peer_review else 'No'}",
+            f"**TBD items remaining:** {tbd_count}",
+            "",
+            f"**Findings ({len(findings)}):**",
+            *[_format_finding_status(f) for f in findings],
+            "",
+            f"**Candidates ({len(candidates)}):**",
+            *[
+                f"  {c.frontmatter['title']} — {c.frontmatter['verdict']}"
+                for c in candidates
+            ],
+            "",
+            "**Phase history:**",
+            *[
+                f"  {t['date']} → {t['phase']}{' (' + t['note'] + ')' if t.get('note') else ''}"
+                for t in pc["transitions"]
+            ],
+        ]
+    )
 
     issues = check_integrity(root, pc)
     if issues:
@@ -195,6 +244,7 @@ def status(research_id: str) -> str:
 
 
 # ── Findings ──────────────────────────────────────────────────────────────────
+
 
 @mcp.tool()
 def finding_create(
@@ -236,13 +286,20 @@ def finding_create(
         source_entries = [{"text": source, "tier": "SECONDARY"}]
 
     # Layer 1: Evidence integrity — CONFIRMED/REASONED require proof of source consultation
-    all_source_texts = " ".join(s.get("text", "") for s in source_entries) if source_entries else source
-    if evidence in ("CONFIRMED", "REASONED") and "content_hash:" not in all_source_texts:
+    all_source_texts = (
+        " ".join(s.get("text", "") for s in source_entries)
+        if source_entries
+        else source
+    )
+    if (
+        evidence in ("CONFIRMED", "REASONED")
+        and "content_hash:" not in all_source_texts
+    ):
         raise ResearchValidationError(
             f'Evidence grade "{evidence}" requires proof of source consultation. '
-            'Include a content_hash in your source field to prove you fetched and read the source material. '
+            "Include a content_hash in your source field to prove you fetched and read the source material. "
             'Format: "<url_or_description> (content_hash:<first_8_chars_of_sha256>)"\n\n'
-            'To compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\n'
+            "To compute: fetch the URL content, SHA256 hash it, include the first 8 hex chars.\n"
             'If your evidence is based on reasoning rather than a fetched source, use evidence: "LOW" or "UNVERIFIED" instead.'
         )
 
@@ -261,8 +318,13 @@ def finding_create(
     fp = finding_path(root, fid, slug)
 
     frontmatter = {
-        "id": fid, "title": title, "status": "open", "evidence": evidence,
-        "sources": source_entries if source_entries else (0 if source == "unspecified" else 1),
+        "id": fid,
+        "title": title,
+        "status": "open",
+        "evidence": evidence,
+        "sources": source_entries
+        if source_entries
+        else (0 if source == "unspecified" else 1),
         "disconfirmation": disconfirmation,
         "created": _today(),
     }
@@ -272,7 +334,9 @@ def finding_create(
         evidence_lines = []
         for s in source_entries:
             tier_tag = f" [{s.get('tier', 'SECONDARY')}]" if s.get("tier") else ""
-            evidence_lines.append(f"> **Source{tier_tag}:** {s['text']}, retrieved {_today()}")
+            evidence_lines.append(
+                f"> **Source{tier_tag}:** {s['text']}, retrieved {_today()}"
+            )
         evidence_text = "\n>\n".join(evidence_lines)
     else:
         evidence_text = f"> **Evidence: [{evidence}]** — {source}, retrieved {_today()}"
@@ -291,7 +355,9 @@ def finding_create(
     if vendor_warning:
         advisories.append(vendor_warning)
 
-    result = f"Finding created: findings/{fid}-{slug}.md\nID: {fid} | Evidence: {evidence}"
+    result = (
+        f"Finding created: findings/{fid}-{slug}.md\nID: {fid} | Evidence: {evidence}"
+    )
 
     # Web research nudge — prompt agents to actually search the web
     if not source_entries and evidence in ("UNVERIFIED", "LOW"):
@@ -314,8 +380,17 @@ def finding_list(research_id: str) -> str:
     findings = list_findings(resolved.projectRoot)
     if not findings:
         return "No findings yet."
-    rows = [f"{f.frontmatter['id']} | {f.frontmatter['status']:<10} | {f.frontmatter['evidence']:<10} | {f.frontmatter['title']}" for f in findings]
-    return "\n".join(["ID   | Status     | Evidence   | Title", "---- | ---------- | ---------- | -----", *rows])
+    rows = [
+        f"{f.frontmatter['id']} | {f.frontmatter['status']:<10} | {f.frontmatter['evidence']:<10} | {f.frontmatter['title']}"
+        for f in findings
+    ]
+    return "\n".join(
+        [
+            "ID   | Status     | Evidence   | Title",
+            "---- | ---------- | ---------- | -----",
+            *rows,
+        ]
+    )
 
 
 @mcp.tool()
@@ -371,7 +446,11 @@ def finding_update(
 
     content = finding.content
     if claim:
-        content = re.sub(r"## Claim\n\n[\s\S]*?\n\n## Supporting", f"## Claim\n\n{claim}\n\n## Supporting", content)
+        content = re.sub(
+            r"## Claim\n\n[\s\S]*?\n\n## Supporting",
+            f"## Claim\n\n{claim}\n\n## Supporting",
+            content,
+        )
 
     # Update disconfirmation section in markdown body
     if disconfirmation is not None:
@@ -403,7 +482,9 @@ def finding_update(
 
     # Web research nudge — if evidence is still low and no sources
     updated_sources = updated.get("sources", 0)
-    has_sources = (isinstance(updated_sources, list) and len(updated_sources) > 0) or (isinstance(updated_sources, int) and updated_sources > 0)
+    has_sources = (isinstance(updated_sources, list) and len(updated_sources) > 0) or (
+        isinstance(updated_sources, int) and updated_sources > 0
+    )
     if not has_sources and target_evidence in ("UNVERIFIED", "LOW"):
         advisories.append(
             "This finding still has no sources. Use WebSearch and WebFetch to find "
@@ -417,8 +498,14 @@ def finding_update(
 
 # ── Candidates ────────────────────────────────────────────────────────────────
 
+
 @mcp.tool()
-def candidate_create(research_id: str, title: str, slug: str | None = None, description: str | None = None) -> str:
+def candidate_create(
+    research_id: str,
+    title: str,
+    slug: str | None = None,
+    description: str | None = None,
+) -> str:
     """Create a new candidate for evaluation."""
     resolved = _get_project(research_id)
     s = sanitize_slug(slug or title)
@@ -455,12 +542,19 @@ def candidate_list(research_id: str) -> str:
     candidates = list_candidates(resolved.projectRoot)
     if not candidates:
         return "No candidates yet."
-    rows = [f"{c.frontmatter['verdict']:<12} | {c.frontmatter['title']}" for c in candidates]
+    rows = [
+        f"{c.frontmatter['verdict']:<12} | {c.frontmatter['title']}" for c in candidates
+    ]
     return "\n".join(["Verdict       | Title", "------------- | -----", *rows])
 
 
 @mcp.tool()
-def candidate_update(research_id: str, slug: str, verdict: str | None = None, description: str | None = None) -> str:
+def candidate_update(
+    research_id: str,
+    slug: str,
+    verdict: str | None = None,
+    description: str | None = None,
+) -> str:
     """Update a candidate's verdict and/or description."""
     resolved = _get_project(research_id)
     fp = candidate_path(resolved.projectRoot, slug)
@@ -474,7 +568,11 @@ def candidate_update(research_id: str, slug: str, verdict: str | None = None, de
 
     content = parsed.content
     if description:
-        content = re.sub(r"(## What It Is\n\n)[\s\S]*?\n\n(## )", rf"\g<1>{description}\n\n\g<2>", content)
+        content = re.sub(
+            r"(## What It Is\n\n)[\s\S]*?\n\n(## )",
+            rf"\g<1>{description}\n\n\g<2>",
+            content,
+        )
 
     write_markdown(fp, updated, content)
     changes = []
@@ -504,7 +602,9 @@ def candidate_add_claim(research_id: str, slug: str, claim: str) -> str:
 
 
 @mcp.tool()
-def candidate_resolve_claim(research_id: str, slug: str, claim_index: int, result: str) -> str:
+def candidate_resolve_claim(
+    research_id: str, slug: str, claim_index: int, result: str
+) -> str:
     """Mark a validation claim Y or N (clears _TBD_)."""
     resolved = _get_project(research_id)
     fp = candidate_path(resolved.projectRoot, slug)
@@ -533,24 +633,30 @@ def candidate_resolve_claim(research_id: str, slug: str, claim_index: int, resul
 
 # ── Criteria ──────────────────────────────────────────────────────────────────
 
+
 @mcp.tool()
 def criteria_lock(research_id: str) -> str:
     """Lock decision criteria, preventing further weight changes."""
     resolved = _get_project(research_id)
     criteria_file = decision_criteria_path(resolved.projectRoot)
     if not os.path.exists(criteria_file):
-        raise ResearchNotFoundError("File", ".research/evaluations/decision-criteria.md")
+        raise ResearchNotFoundError(
+            "File", ".research/evaluations/decision-criteria.md"
+        )
 
     parsed = read_markdown(criteria_file)
     if parsed.frontmatter.get("locked"):
         return f"Criteria already locked on {parsed.frontmatter.get('locked_date')}."
 
-    write_markdown(criteria_file, {"locked": True, "locked_date": _today()}, parsed.content)
+    write_markdown(
+        criteria_file, {"locked": True, "locked_date": _today()}, parsed.content
+    )
     advance_phase(resolved.projectRoot, "locked", "Criteria weights frozen")
     return f"Decision criteria locked on {_today()}. Weights are now frozen. Phase → locked"
 
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
+
 
 @mcp.tool()
 def candidate_score(research_id: str, slug: str, scores: dict, notes: str = "") -> str:
@@ -583,7 +689,9 @@ def candidate_score(research_id: str, slug: str, scores: dict, notes: str = "") 
     notes_section = f"\n**Notes:** {notes}\n" if notes else ""
     scoring_section = f"\n## Scores\n\n| Criterion | Score |\n|-----------|-------|\n{score_lines}\n| **Total** | **{total}** |\n{notes_section}"
 
-    new_content = re.sub(r"## Scoring[\s\S]*", f"## Scoring{scoring_section}", parsed.content)
+    new_content = re.sub(
+        r"## Scoring[\s\S]*", f"## Scoring{scoring_section}", parsed.content
+    )
     write_markdown(fp, parsed.frontmatter, new_content)
 
     try:
@@ -591,7 +699,9 @@ def candidate_score(research_id: str, slug: str, scores: dict, notes: str = "") 
     except Exception:
         pass  # Already at scored or later
 
-    return f"Scored '{slug}'. Total: {total}\n" + "\n".join(f"  {k}: {v}" for k, v in scores.items())
+    return f"Scored '{slug}'. Total: {total}\n" + "\n".join(
+        f"  {k}: {v}" for k, v in scores.items()
+    )
 
 
 @mcp.tool()
@@ -601,17 +711,30 @@ def scoring_matrix_generate(research_id: str) -> str:
     root = resolved.projectRoot
     criteria = load_decision_criteria(root)
     if not criteria or not criteria.frontmatter.get("locked"):
-        raise ResearchGateError("Criteria must be locked before generating scoring matrix.")
+        raise ResearchGateError(
+            "Criteria must be locked before generating scoring matrix."
+        )
 
     candidates = list_candidates(root)
     matrix_path = scoring_matrix_path(root)
 
     criteria_rows = []
     for line in criteria.content.split("\n"):
-        if line.startswith("|") and "---" not in line and "Criterion" not in line and "Weight" not in line:
+        if (
+            line.startswith("|")
+            and "---" not in line
+            and "Criterion" not in line
+            and "Weight" not in line
+        ):
             cols = [s.strip() for s in line.split("|") if s.strip()]
             if len(cols) >= 2 and cols[1] != "_TBD_":
-                criteria_rows.append({"num": cols[0], "name": cols[1], "weight": cols[2] if len(cols) > 2 else "1"})
+                criteria_rows.append(
+                    {
+                        "num": cols[0],
+                        "name": cols[1],
+                        "weight": cols[2] if len(cols) > 2 else "1",
+                    }
+                )
 
     header = " | ".join(c["name"] for c in criteria_rows)
     dashes = "|".join("---" for _ in criteria_rows)
@@ -622,25 +745,29 @@ def scoring_matrix_generate(research_id: str) -> str:
         score_map = {m[0].strip(): int(m[1]) for m in score_matches}
         scores_list = [str(score_map.get(cr["name"], "–")) for cr in criteria_rows]
         total = sum(score_map.get(cr["name"], 0) for cr in criteria_rows)
-        candidate_lines.append(f"| {c.frontmatter['title']} | {' | '.join(scores_list)} | **{total}** |")
+        candidate_lines.append(
+            f"| {c.frontmatter['title']} | {' | '.join(scores_list)} | **{total}** |"
+        )
 
-    matrix_content = "\n".join([
-        "# Scoring Matrix",
-        "",
-        f"_Generated {_today()} — criteria locked {criteria.frontmatter.get('locked_date')}_",
-        "",
-        "## Criteria",
-        "",
-        "| # | Criterion | Weight |",
-        "|---|-----------|--------|",
-        *[f"| {c['num']} | {c['name']} | {c['weight']} |" for c in criteria_rows],
-        "",
-        "## Scores",
-        "",
-        f"| Candidate | {header} | **Total** |",
-        f"|-----------|{dashes}|-----------|",
-        *candidate_lines,
-    ])
+    matrix_content = "\n".join(
+        [
+            "# Scoring Matrix",
+            "",
+            f"_Generated {_today()} — criteria locked {criteria.frontmatter.get('locked_date')}_",
+            "",
+            "## Criteria",
+            "",
+            "| # | Criterion | Weight |",
+            "|---|-----------|--------|",
+            *[f"| {c['num']} | {c['name']} | {c['weight']} |" for c in criteria_rows],
+            "",
+            "## Scores",
+            "",
+            f"| Candidate | {header} | **Total** |",
+            f"|-----------|{dashes}|-----------|",
+            *candidate_lines,
+        ]
+    )
 
     with open(matrix_path, "w") as f:
         f.write(matrix_content + "\n")
@@ -649,15 +776,26 @@ def scoring_matrix_generate(research_id: str) -> str:
 
 # ── Peer Review ───────────────────────────────────────────────────────────────
 
+
 @mcp.tool()
-def peer_review_log(research_id: str, reviewer: str, findings: list[str], attestations: dict | None = None, notes: str = "") -> str:
+def peer_review_log(
+    research_id: str,
+    reviewer: str,
+    findings: list[str],
+    attestations: dict | None = None,
+    notes: str = "",
+) -> str:
     """Log a peer review. Required before scoring. Advances project to 'reviewed' phase."""
     resolved = _get_project(research_id)
     root = resolved.projectRoot
     atts = attestations or {}
 
     all_findings = list_findings(root)
-    high_findings = [f for f in all_findings if f.frontmatter["evidence"] in ("CONFIRMED", "REASONED")]
+    high_findings = [
+        f
+        for f in all_findings
+        if f.frontmatter["evidence"] in ("CONFIRMED", "REASONED")
+    ]
     unattested = [f for f in high_findings if f.frontmatter["id"] not in atts]
 
     finding_lines = []
@@ -672,17 +810,28 @@ def peer_review_log(research_id: str, reviewer: str, findings: list[str], attest
             attestation_lines.append(f"- **{finding_id}**: {att}")
 
     if unattested:
-        attestation_lines.extend([
-            "",
-            f"> ⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) without attestation: {', '.join(f.frontmatter['id'] for f in unattested)}",
-            "> These will be treated as SKIPPED at scoring time — evidence grade may be downgraded.",
-        ])
+        attestation_lines.extend(
+            [
+                "",
+                f"> ⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) without attestation: {', '.join(f.frontmatter['id'] for f in unattested)}",
+                "> These will be treated as SKIPPED at scoring time — evidence grade may be downgraded.",
+            ]
+        )
 
-    content = "\n".join([
-        "# Peer Review", "", f"**Reviewer:** {reviewer}", f"**Date:** {_today()}", "",
-        "## Findings", "", *finding_lines, *attestation_lines,
-        *(["", "## Notes", "", notes] if notes else []),
-    ])
+    content = "\n".join(
+        [
+            "# Peer Review",
+            "",
+            f"**Reviewer:** {reviewer}",
+            f"**Date:** {_today()}",
+            "",
+            "## Findings",
+            "",
+            *finding_lines,
+            *attestation_lines,
+            *(["", "## Notes", "", notes] if notes else []),
+        ]
+    )
 
     fp = peer_review_path(root)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
@@ -691,14 +840,21 @@ def peer_review_log(research_id: str, reviewer: str, findings: list[str], attest
 
     advance_phase(root, "reviewed", f"Peer review by {reviewer}")
 
-    warnings = f"\n⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) lack attestation — will be downgraded at scoring." if unattested else ""
+    warnings = (
+        f"\n⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) lack attestation — will be downgraded at scoring."
+        if unattested
+        else ""
+    )
     return f"Peer review logged by {reviewer} on {_today()}. Scoring is now unblocked. Phase → reviewed{warnings}"
 
 
 # ── Decision ──────────────────────────────────────────────────────────────────
 
+
 @mcp.tool()
-def project_decide(research_id: str, decision: str, rationale: str, adr_reference: str = "") -> str:
+def project_decide(
+    research_id: str, decision: str, rationale: str, adr_reference: str = ""
+) -> str:
     """Record a decision. Advances project to 'decided' phase. Requires 'scored' phase or later."""
     resolved = _get_project(research_id)
     root = resolved.projectRoot
@@ -714,17 +870,31 @@ def project_decide(research_id: str, decision: str, rationale: str, adr_referenc
                 content = open(fp).read()
                 changed = False
                 if "Under Research" in content or "Status: Draft" in content:
-                    content = content.replace("Under Research", "Decided").replace("Status: Draft", "Status: Decided")
+                    content = content.replace("Under Research", "Decided").replace(
+                        "Status: Draft", "Status: Decided"
+                    )
                     changed = True
-                if "_To be written after scoring matrix is complete._" in content or "_To be written after decision is made._" in content:
+                if (
+                    "_To be written after scoring matrix is complete._" in content
+                    or "_To be written after decision is made._" in content
+                ):
                     content = re.sub(
                         r"## Decision\n\n_To be written[^_]*_",
-                        f"## Decision\n\n{decision}" + (f"\n\nSee {adr_reference} for the full decision record." if adr_reference else ""),
+                        f"## Decision\n\n{decision}"
+                        + (
+                            f"\n\nSee {adr_reference} for the full decision record."
+                            if adr_reference
+                            else ""
+                        ),
                         content,
                     )
                     changed = True
                 if "_To be written after decision is made._" in content:
-                    content = re.sub(r"## Consequences\n\n_To be written[^_]*_", f"## Consequences\n\n{rationale}", content)
+                    content = re.sub(
+                        r"## Consequences\n\n_To be written[^_]*_",
+                        f"## Consequences\n\n{rationale}",
+                        content,
+                    )
                     changed = True
                 content = content.replace("**Date:** _TBD_", f"**Date:** {_today()}")
                 if changed:
@@ -733,11 +903,23 @@ def project_decide(research_id: str, decision: str, rationale: str, adr_referenc
                     updated_files.append(df)
 
     # Write DECISION.md
-    summary = "\n".join([
-        "# Decision", "", f"**Date:** {_today()}", "**Status:** Decided",
-        *([ f"**ADR:** {adr_reference}"] if adr_reference else []),
-        "", "## Decision", "", decision, "", "## Rationale", "", rationale,
-    ])
+    summary = "\n".join(
+        [
+            "# Decision",
+            "",
+            f"**Date:** {_today()}",
+            "**Status:** Decided",
+            *([f"**ADR:** {adr_reference}"] if adr_reference else []),
+            "",
+            "## Decision",
+            "",
+            decision,
+            "",
+            "## Rationale",
+            "",
+            rationale,
+        ]
+    )
     decision_path = os.path.join(root, ".research", "DECISION.md")
     with open(decision_path, "w") as f:
         f.write(summary + "\n")
@@ -762,6 +944,7 @@ def project_supersede(research_id: str, superseded_by: str) -> str:
 
 # ── Brief & Report ────────────────────────────────────────────────────────────
 
+
 @mcp.tool()
 def research_brief(research_id: str, audience: str = "general") -> str:
     """Generate a layered research brief from a completed (decided) project."""
@@ -774,49 +957,88 @@ def research_brief(research_id: str, audience: str = "general") -> str:
     has_peer_review = peer_review_exists(root)
 
     decision_path = os.path.join(root, ".research", "DECISION.md")
-    decision_content = open(decision_path).read() if os.path.exists(decision_path) else ""
-    matrix_p = scoring_matrix_path(root)
-    matrix_content = open(matrix_p).read() if os.path.exists(matrix_p) else ""
-
-    high_findings = [f for f in findings_list if f.frontmatter["evidence"] == "CONFIRMED"]
+    decision_content = (
+        open(decision_path).read() if os.path.exists(decision_path) else ""
+    )
+    high_findings = [
+        f for f in findings_list if f.frontmatter["evidence"] == "CONFIRMED"
+    ]
     mod_findings = [f for f in findings_list if f.frontmatter["evidence"] == "REASONED"]
 
     candidate_scores = []
     for c in candidates_list:
         total_match = re.search(r"\*\*Total\*\*.*?\*\*(\d+)\*\*", c.content)
         total = int(total_match.group(1)) if total_match else 0
-        candidate_scores.append({"title": c.frontmatter["title"], "total": total, "verdict": c.frontmatter["verdict"]})
+        candidate_scores.append(
+            {
+                "title": c.frontmatter["title"],
+                "total": total,
+                "verdict": c.frontmatter["verdict"],
+            }
+        )
     candidate_scores.sort(key=lambda x: -x["total"])
 
-    brief = [f"# Research Brief: {pc['projectName']}", "", f"*Generated {_today()} by research.md*", ""]
+    brief = [
+        f"# Research Brief: {pc['projectName']}",
+        "",
+        f"*Generated {_today()} by research.md*",
+        "",
+    ]
     if pc.get("question"):
         brief.extend([f"> **Question:** {pc['question']}", ""])
 
     if decision_content:
         for line in decision_content.split("\n"):
             line = line.strip()
-            if line and not line.startswith("#") and not line.startswith("*") and line not in ("", "# Decision"):
+            if (
+                line
+                and not line.startswith("#")
+                and not line.startswith("*")
+                and line not in ("", "# Decision")
+            ):
                 # Skip metadata lines
                 if not line.startswith("**"):
                     brief.extend([f"**Verdict:** {line}", ""])
                     break
 
-    brief.extend([f"**Evidence:** {len(findings_list)} findings ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}", ""])
+    brief.extend(
+        [
+            f"**Evidence:** {len(findings_list)} findings ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}",
+            "",
+        ]
+    )
 
     brief.extend(["---", "", "## Key Findings", ""])
     for f in high_findings[:8]:
-        claim_first = extract_section(f.content, "Claim").split("\n")[0] if extract_section(f.content, "Claim") else ""
+        claim_first = (
+            extract_section(f.content, "Claim").split("\n")[0]
+            if extract_section(f.content, "Claim")
+            else ""
+        )
         brief.append(f"- **{f.frontmatter['title']}** — {claim_first}")
     if len(high_findings) > 8:
-        brief.append(f"- *...and {len(high_findings) - 8} more CONFIRMED-evidence findings*")
+        brief.append(
+            f"- *...and {len(high_findings) - 8} more CONFIRMED-evidence findings*"
+        )
     if mod_findings:
-        brief.append(f"- *Plus {len(mod_findings)} REASONED-evidence findings (see full report)*")
+        brief.append(
+            f"- *Plus {len(mod_findings)} REASONED-evidence findings (see full report)*"
+        )
     brief.append("")
 
     if candidate_scores:
-        brief.extend(["---", "", "## Candidates Evaluated", "", "| Rank | Candidate | Score | Verdict |", "|------|-----------|-------|---------|"])
+        brief.extend(
+            [
+                "---",
+                "",
+                "## Candidates Evaluated",
+                "",
+                "| Rank | Candidate | Score | Verdict |",
+                "|------|-----------|-------|---------|",
+            ]
+        )
         for i, c in enumerate(candidate_scores):
-            brief.append(f"| {i+1} | {c['title']} | {c['total']} | {c['verdict']} |")
+            brief.append(f"| {i + 1} | {c['title']} | {c['total']} | {c['verdict']} |")
         brief.append("")
 
     if decision_content:
@@ -830,27 +1052,37 @@ def research_brief(research_id: str, audience: str = "general") -> str:
         brief.append("")
 
     brief.extend(["---", "", "## Methodology", ""])
-    brief.extend([
-        f"- **Project:** {pc['projectName']}",
-        f"- **Phase:** {pc['phase']}",
-        f"- **Created:** {pc['created']}",
-        f"- **Findings:** {len(findings_list)} ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED)",
-        f"- **Candidates:** {len(candidates_list)} evaluated",
-        f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
-        f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",
-        "",
-    ])
+    brief.extend(
+        [
+            f"- **Project:** {pc['projectName']}",
+            f"- **Phase:** {pc['phase']}",
+            f"- **Created:** {pc['created']}",
+            f"- **Findings:** {len(findings_list)} ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED)",
+            f"- **Candidates:** {len(candidates_list)} evaluated",
+            f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
+            f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",
+            "",
+        ]
+    )
 
     if pc.get("transitions"):
         brief.extend(["### Timeline", ""])
         for t in pc["transitions"]:
-            brief.append(f"- {t['date']}: {t['phase']}{' — ' + t['note'] if t.get('note') else ''}")
+            brief.append(
+                f"- {t['date']}: {t['phase']}{' — ' + t['note'] if t.get('note') else ''}"
+            )
         brief.append("")
 
     if pc.get("context"):
         brief.extend(["### Research Context", "", pc["context"], ""])
 
-    brief.extend(["---", "", "*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*"])
+    brief.extend(
+        [
+            "---",
+            "",
+            "*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*",
+        ]
+    )
 
     brief_path = os.path.join(root, ".research", "BRIEF.md")
     with open(brief_path, "w") as f:
@@ -871,7 +1103,9 @@ def research_report(research_id: str) -> str:
     has_peer_review = peer_review_exists(root)
 
     decision_path = os.path.join(root, ".research", "DECISION.md")
-    decision_content = open(decision_path).read() if os.path.exists(decision_path) else ""
+    decision_content = (
+        open(decision_path).read() if os.path.exists(decision_path) else ""
+    )
     matrix_p = scoring_matrix_path(root)
     matrix_content = open(matrix_p).read() if os.path.exists(matrix_p) else ""
 
@@ -880,7 +1114,12 @@ def research_report(research_id: str) -> str:
     low = [f for f in findings_list if f.frontmatter["evidence"] == "LOW"]
     unverified = [f for f in findings_list if f.frontmatter["evidence"] == "UNVERIFIED"]
 
-    report = [f"# Research Report: {pc['projectName']}", "", f"*Full report generated {_today()} by research.md*", ""]
+    report = [
+        f"# Research Report: {pc['projectName']}",
+        "",
+        f"*Full report generated {_today()} by research.md*",
+        "",
+    ]
     sections = []
 
     if pc.get("question"):
@@ -889,31 +1128,51 @@ def research_report(research_id: str) -> str:
     if decision_content:
         for line in decision_content.split("\n"):
             line = line.strip()
-            if line and not line.startswith("#") and not line.startswith("*") and not line.startswith("**"):
+            if (
+                line
+                and not line.startswith("#")
+                and not line.startswith("*")
+                and not line.startswith("**")
+            ):
                 report.extend([f"**Verdict:** {line}", ""])
                 break
     sections.append("Title + Question + Verdict")
 
-    report.extend([
-        f"**Evidence:** {len(findings_list)} findings ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}",
-        "",
-    ])
+    report.extend(
+        [
+            f"**Evidence:** {len(findings_list)} findings ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}",
+            "",
+        ]
+    )
     sections.append("Evidence Summary")
 
     report.extend(["---", "", "## All Findings", ""])
-    for label, group in [("CONFIRMED", high), ("REASONED", mod), ("LOW", low), ("UNVERIFIED", unverified)]:
+    for label, group in [
+        ("CONFIRMED", high),
+        ("REASONED", mod),
+        ("LOW", low),
+        ("UNVERIFIED", unverified),
+    ]:
         if not group:
             continue
         report.extend([f"### {label} Evidence ({len(group)})", ""])
         for f in group:
             claim_text = extract_section(f.content, "Claim") or ""
             raw_sources = f.frontmatter.get("sources", 0)
-            src_n = len(raw_sources) if isinstance(raw_sources, list) else (raw_sources if isinstance(raw_sources, int) else 0)
+            src_n = (
+                len(raw_sources)
+                if isinstance(raw_sources, list)
+                else (raw_sources if isinstance(raw_sources, int) else 0)
+            )
             source_text = f"{src_n} source(s)"
-            report.extend([
-                f"#### {f.frontmatter['id']}: {f.frontmatter['title']}", "",
-                f"**Evidence:** {f.frontmatter['evidence']} | **Status:** {f.frontmatter['status']} | **Sources:** {source_text}", "",
-            ])
+            report.extend(
+                [
+                    f"#### {f.frontmatter['id']}: {f.frontmatter['title']}",
+                    "",
+                    f"**Evidence:** {f.frontmatter['evidence']} | **Status:** {f.frontmatter['status']} | **Sources:** {source_text}",
+                    "",
+                ]
+            )
             if claim_text:
                 report.extend([claim_text, ""])
     sections.append(f"All Findings ({len(findings_list)})")
@@ -921,7 +1180,14 @@ def research_report(research_id: str) -> str:
     if candidates_list:
         report.extend(["---", "", "## All Candidates", ""])
         for c in candidates_list:
-            report.extend([f"### {c.frontmatter['title']}", "", f"**Verdict:** {c.frontmatter['verdict']}", ""])
+            report.extend(
+                [
+                    f"### {c.frontmatter['title']}",
+                    "",
+                    f"**Verdict:** {c.frontmatter['verdict']}",
+                    "",
+                ]
+            )
             what = extract_section(c.content, "What It Is")
             if what:
                 report.extend(["**What It Is**", "", what, ""])
@@ -948,25 +1214,35 @@ def research_report(research_id: str) -> str:
         sections.append("Decision")
 
     report.extend(["---", "", "## Methodology", ""])
-    report.extend([
-        f"- **Project:** {pc['projectName']}",
-        f"- **Phase:** {pc['phase']}",
-        f"- **Created:** {pc['created']}",
-        f"- **Findings:** {len(findings_list)} ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED)",
-        f"- **Candidates:** {len(candidates_list)} evaluated",
-        f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
-        f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",
-        "",
-    ])
+    report.extend(
+        [
+            f"- **Project:** {pc['projectName']}",
+            f"- **Phase:** {pc['phase']}",
+            f"- **Created:** {pc['created']}",
+            f"- **Findings:** {len(findings_list)} ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED)",
+            f"- **Candidates:** {len(candidates_list)} evaluated",
+            f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
+            f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",
+            "",
+        ]
+    )
     if pc.get("transitions"):
         report.extend(["### Timeline", ""])
         for t in pc["transitions"]:
-            report.append(f"- {t['date']}: {t['phase']}{' — ' + t['note'] if t.get('note') else ''}")
+            report.append(
+                f"- {t['date']}: {t['phase']}{' — ' + t['note'] if t.get('note') else ''}"
+            )
         report.append("")
     if pc.get("context"):
         report.extend(["### Research Context", "", pc["context"], ""])
 
-    report.extend(["---", "", "*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*"])
+    report.extend(
+        [
+            "---",
+            "",
+            "*Generated by [research.md](https://github.com/eidos-agi/research.md) — structured research workflow for AI-augmented decision making.*",
+        ]
+    )
     sections.append("Methodology")
 
     report_path = os.path.join(root, ".research", "REPORT.md")

@@ -1,5 +1,5 @@
 """Scoring gates — must pass before a candidate can be scored.
-   Evidence gates — must pass before a finding can be upgraded to CONFIRMED."""
+Evidence gates — must pass before a finding can be upgraded to CONFIRMED."""
 
 from .files import load_decision_criteria, peer_review_exists, list_candidates
 
@@ -7,15 +7,24 @@ from .files import load_decision_criteria, peer_review_exists, list_candidates
 def gate_criteria_locked(project_root: str) -> dict:
     criteria = load_decision_criteria(project_root)
     if not criteria:
-        return {"passed": False, "error": "No decision-criteria.md found in evaluations/. Run `init` and add criteria before scoring."}
+        return {
+            "passed": False,
+            "error": "No decision-criteria.md found in evaluations/. Run `init` and add criteria before scoring.",
+        }
     if not criteria.frontmatter.get("locked"):
-        return {"passed": False, "error": "Decision criteria are not locked. Run `lock_criteria` to freeze weights before scoring."}
+        return {
+            "passed": False,
+            "error": "Decision criteria are not locked. Run `lock_criteria` to freeze weights before scoring.",
+        }
     return {"passed": True}
 
 
 def gate_peer_review_exists(project_root: str) -> dict:
     if not peer_review_exists(project_root):
-        return {"passed": False, "error": "No peer-review.md found in evaluations/. Run `log_peer_review` before scoring."}
+        return {
+            "passed": False,
+            "error": "No peer-review.md found in evaluations/. Run `log_peer_review` before scoring.",
+        }
     return {"passed": True}
 
 
@@ -25,7 +34,10 @@ def gate_candidate_no_tbd(project_root: str, slug: str) -> dict:
     if not candidate:
         return {"passed": False, "error": f"Candidate '{slug}' not found."}
     if "_TBD_" in candidate.content:
-        return {"passed": False, "error": f"Candidate '{slug}' has unresolved _TBD_ items in its validation checklist. Resolve all claims before scoring."}
+        return {
+            "passed": False,
+            "error": f"Candidate '{slug}' has unresolved _TBD_ items in its validation checklist. Resolve all claims before scoring.",
+        }
     return {"passed": True}
 
 
@@ -49,7 +61,11 @@ def gate_confirmed_triangulation(frontmatter: dict) -> dict:
     if frontmatter.get("evidence") != "CONFIRMED":
         return {"passed": True}
     sources = frontmatter.get("sources", 0)
-    count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
+    count = (
+        len(sources)
+        if isinstance(sources, list)
+        else (sources if isinstance(sources, int) else 0)
+    )
     if count < 2:
         return {
             "passed": False,
@@ -67,7 +83,9 @@ def gate_confirmed_disconfirmation(frontmatter: dict) -> dict:
     if frontmatter.get("evidence") != "CONFIRMED":
         return {"passed": True}
     disconfirmation = frontmatter.get("disconfirmation")
-    if not disconfirmation or (isinstance(disconfirmation, str) and not disconfirmation.strip()):
+    if not disconfirmation or (
+        isinstance(disconfirmation, str) and not disconfirmation.strip()
+    ):
         return {
             "passed": False,
             "error": (
@@ -98,7 +116,11 @@ def gate_reasoned_has_source(frontmatter: dict) -> dict:
     if frontmatter.get("evidence") != "REASONED":
         return {"passed": True}
     sources = frontmatter.get("sources", 0)
-    count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
+    count = (
+        len(sources)
+        if isinstance(sources, list)
+        else (sources if isinstance(sources, int) else 0)
+    )
     if count < 1:
         return {
             "passed": False,

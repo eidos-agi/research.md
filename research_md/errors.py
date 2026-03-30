@@ -23,7 +23,9 @@ class ResearchGateError(ResearchError):
 
 class ResearchNotFoundError(ResearchError):
     def __init__(self, entity: str, id: str):
-        super().__init__(f"{entity} '{id}' not found.", "NOT_FOUND", {"entity": entity, "id": id})
+        super().__init__(
+            f"{entity} '{id}' not found.", "NOT_FOUND", {"entity": entity, "id": id}
+        )
 
 
 def format_error(err: Exception) -> dict:
@@ -34,6 +36,10 @@ def format_error(err: Exception) -> dict:
             parts.append(f"Code: {err.code}")
         if is_debug and err.details:
             import json
+
             parts.append(f"Details: {json.dumps(err.details)}")
-        return {"content": [{"type": "text", "text": "\n".join(parts)}], "isError": True}
+        return {
+            "content": [{"type": "text", "text": "\n".join(parts)}],
+            "isError": True,
+        }
     return {"content": [{"type": "text", "text": f"Error: {err}"}], "isError": True}

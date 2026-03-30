@@ -21,6 +21,7 @@ class ParsedFile:
 
 # ── YAML formatting to match gray-matter ──────────────────────────────────────
 
+
 class _GrayMatterDumper(yaml.SafeDumper):
     pass
 
@@ -29,7 +30,30 @@ def _str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
     if re.match(r"^\d{4}-\d{2}-\d{2}$", data):
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
     # Quote strings that would confuse YAML parsers (colons, special chars, multiline)
-    if any(ch in data for ch in (":", "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`", "\n")):
+    if any(
+        ch in data
+        for ch in (
+            ":",
+            "{",
+            "}",
+            "[",
+            "]",
+            ",",
+            "&",
+            "*",
+            "?",
+            "|",
+            "-",
+            "<",
+            ">",
+            "=",
+            "!",
+            "%",
+            "@",
+            "`",
+            "\n",
+        )
+    ):
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
@@ -46,6 +70,7 @@ _GrayMatterDumper.add_representer(type(None), _none_representer)
 
 # ── Read / Write ──────────────────────────────────────────────────────────────
 
+
 def read_markdown(file_path: str) -> ParsedFile:
     with open(file_path) as f:
         raw = f.read()
@@ -53,7 +78,7 @@ def read_markdown(file_path: str) -> ParsedFile:
     if raw.startswith("---\n"):
         end = raw.index("\n---\n", 4)
         fm_str = raw[4:end]
-        content = raw[end + 5:]
+        content = raw[end + 5 :]
         frontmatter = yaml.safe_load(fm_str) or {}
         for k, v in frontmatter.items():
             if hasattr(v, "isoformat"):
@@ -70,8 +95,11 @@ def write_markdown(file_path: str, frontmatter: dict[str, Any], content: str) ->
     fm = {k: v for k, v in frontmatter.items() if v is not None}
 
     fm_str = yaml.dump(
-        fm, Dumper=_GrayMatterDumper,
-        default_flow_style=False, sort_keys=False, allow_unicode=True,
+        fm,
+        Dumper=_GrayMatterDumper,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
         indent=2,
     )
     # Match gray-matter list indentation for simple lists.
@@ -82,8 +110,10 @@ def write_markdown(file_path: str, frontmatter: dict[str, Any], content: str) ->
     for i, line in enumerate(lines):
         if line.startswith("- ") and not line.startswith("- {"):
             # Check if next non-empty line is a continuation (dict key at same indent)
-            next_lines = [l for l in lines[i+1:i+3] if l.strip()]
-            has_nested_keys = any(l.startswith("  ") and not l.startswith("  -") for l in next_lines)
+            next_lines = [ln for ln in lines[i + 1 : i + 3] if ln.strip()]
+            has_nested_keys = any(
+                ln.startswith("  ") and not ln.startswith("  -") for ln in next_lines
+            )
             if has_nested_keys:
                 in_nested_list = True
                 fixed.append(line)
@@ -108,6 +138,7 @@ def write_markdown(file_path: str, frontmatter: dict[str, Any], content: str) ->
 
 
 # ── Findings ──────────────────────────────────────────────────────────────────
+
 
 def list_findings(project_root: str) -> list[ParsedFile]:
     d = safe_path(project_root, RESEARCH_DIR, "findings")
@@ -138,6 +169,7 @@ def finding_path(project_root: str, id: str, slug: str) -> str:
 
 # ── Candidates ────────────────────────────────────────────────────────────────
 
+
 def list_candidates(project_root: str) -> list[ParsedFile]:
     d = safe_path(project_root, RESEARCH_DIR, "candidates")
     if not os.path.exists(d):
@@ -155,6 +187,7 @@ def candidate_path(project_root: str, slug: str) -> str:
 
 # ── Decision Criteria ─────────────────────────────────────────────────────────
 
+
 def decision_criteria_path(project_root: str) -> str:
     return safe_path(project_root, RESEARCH_DIR, "evaluations", "decision-criteria.md")
 
@@ -168,6 +201,7 @@ def load_decision_criteria(project_root: str) -> ParsedFile | None:
 
 # ── Peer Review ───────────────────────────────────────────────────────────────
 
+
 def peer_review_path(project_root: str) -> str:
     return safe_path(project_root, RESEARCH_DIR, "evaluations", "peer-review.md")
 
@@ -178,11 +212,13 @@ def peer_review_exists(project_root: str) -> bool:
 
 # ── Scoring Matrix ────────────────────────────────────────────────────────────
 
+
 def scoring_matrix_path(project_root: str) -> str:
     return safe_path(project_root, RESEARCH_DIR, "evaluations", "scoring-matrix.md")
 
 
 # ── Section extraction ────────────────────────────────────────────────────────
+
 
 def extract_section(content: str, heading: str) -> str:
     lines = content.split("\n")
@@ -206,5 +242,10 @@ def section_has_content(content: str, heading: str) -> bool:
     text = extract_section(content, heading)
     if not text:
         return False
-    stripped = text.replace("_None documented yet._", "").replace("_To be determined._", "").replace("_TBD_", "").strip()
+    stripped = (
+        text.replace("_None documented yet._", "")
+        .replace("_To be determined._", "")
+        .replace("_TBD_", "")
+        .strip()
+    )
     return len(stripped) > 0
