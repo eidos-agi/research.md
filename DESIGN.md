@@ -170,7 +170,7 @@ The key divergence is project targeting:
 
 research.md enforces three things:
 
-1. **You can't fake evidence.** HIGH requires 2+ sources and a disconfirmation search. The tool nudges toward web research at every step.
+1. **You can't fake evidence.** CONFIRMED requires 2+ sources and a disconfirmation search. REASONED requires at least 1 source. The tool nudges toward web research at every step.
 2. **You can't skip process.** Scoring gates are in the code, not in a conventions doc.
 3. **You can't hit the wrong target.** The GUID is a targeting lock that requires intentional acquisition.
 
