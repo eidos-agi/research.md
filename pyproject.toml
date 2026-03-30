@@ -1,6 +1,6 @@
 [project]
 name = "research-md"
-version = "0.3.0"
+version = "0.4.0"
 description = "The decision forge — evidence-graded, phase-gated, peer-reviewed decisions"
 readme = "README.md"
 license = "MIT"

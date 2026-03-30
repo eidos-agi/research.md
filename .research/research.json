@@ -1,0 +1,15 @@
+{
+  "id": "4d679af3-d280-4cee-ab9a-243f832c889a",
+  "version": "0.1.0",
+  "projectName": "Web Research Best Practices for research.md",
+  "created": "2026-03-29",
+  "phase": "research",
+  "transitions": [
+    {
+      "phase": "research",
+      "date": "2026-03-29"
+    }
+  ],
+  "question": "How should research.md enforce web research best practices \u2014 source triangulation, disconfirmation search, and source quality grading \u2014 as process gates, so agents cannot skip rigorous evidence gathering the way they currently cannot skip peer review or criteria locking?",
+  "context": "research.md currently enforces downstream process gates (criteria locking, peer review, TBD resolution) but is completely silent on how evidence is gathered upstream. An agent can mark a finding CONFIRMED from a single blog post with no disconfirming search. The evidence grading field (UNVERIFIED/REASONED/CONFIRMED) is self-assessed with no structural enforcement. This was discovered during the Tipsy Trailer strategy project where web research was done ad-hoc with no methodology. The DESIGN.md philosophy is 'make the right thing automatic and the wrong thing impossible' \u2014 but this principle is not yet applied to evidence gathering."
+}

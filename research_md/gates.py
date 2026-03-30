@@ -46,7 +46,7 @@ def run_scoring_gates(project_root: str, candidate_slug: str) -> dict:
 
 def gate_confirmed_triangulation(frontmatter: dict) -> dict:
     """CONFIRMED requires 2+ independent sources."""
-    if frontmatter.get("evidence") != "HIGH":
+    if frontmatter.get("evidence") != "CONFIRMED":
         return {"passed": True}
     sources = frontmatter.get("sources", 0)
     count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
@@ -54,9 +54,9 @@ def gate_confirmed_triangulation(frontmatter: dict) -> dict:
         return {
             "passed": False,
             "error": (
-                "CONFIRMED (HIGH) evidence requires 2+ independent sources. "
-                "Add more sources via finding_update or downgrade to MODERATE/LOW. "
-                "A single source, regardless of quality, caps a finding at MODERATE."
+                "CONFIRMED evidence requires 2+ independent sources. "
+                "Add more sources via finding_update or downgrade to REASONED/LOW. "
+                "A single source, regardless of quality, caps a finding at REASONED."
             ),
         }
     return {"passed": True}
@@ -64,14 +64,14 @@ def gate_confirmed_triangulation(frontmatter: dict) -> dict:
 
 def gate_confirmed_disconfirmation(frontmatter: dict) -> dict:
     """CONFIRMED requires a documented disconfirmation search."""
-    if frontmatter.get("evidence") != "HIGH":
+    if frontmatter.get("evidence") != "CONFIRMED":
         return {"passed": True}
     disconfirmation = frontmatter.get("disconfirmation")
     if not disconfirmation or (isinstance(disconfirmation, str) and not disconfirmation.strip()):
         return {
             "passed": False,
             "error": (
-                "CONFIRMED (HIGH) evidence requires a disconfirmation search. "
+                "CONFIRMED evidence requires a disconfirmation search. "
                 "Document what you searched for to disprove this claim and what you found. "
                 "Use finding_update with the disconfirmation parameter."
             ),
@@ -93,9 +93,29 @@ def gate_vendor_only_advisory(frontmatter: dict) -> str | None:
     return None
 
 
+def gate_reasoned_has_source(frontmatter: dict) -> dict:
+    """REASONED requires at least 1 source — no purely reasoning-based upgrades."""
+    if frontmatter.get("evidence") != "REASONED":
+        return {"passed": True}
+    sources = frontmatter.get("sources", 0)
+    count = len(sources) if isinstance(sources, list) else (sources if isinstance(sources, int) else 0)
+    if count < 1:
+        return {
+            "passed": False,
+            "error": (
+                "REASONED evidence requires at least 1 source. "
+                "Use WebSearch/WebFetch to find supporting evidence, then call "
+                "finding_update with a sources array. Research findings should be "
+                "grounded in web research, not just reasoning."
+            ),
+        }
+    return {"passed": True}
+
+
 def run_evidence_gates(frontmatter: dict) -> dict:
-    """Run all evidence gates for a finding being upgraded to HIGH. Returns first failure."""
+    """Run all evidence gates. Returns first failure."""
     checks = [
+        gate_reasoned_has_source(frontmatter),
         gate_confirmed_triangulation(frontmatter),
         gate_confirmed_disconfirmation(frontmatter),
     ]

@@ -2,7 +2,7 @@
 id: '0002'
 title: 'PostgreSQL is overkill for solo projects under 1000 users'
 status: open
-evidence: MODERATE
+evidence: REASONED
 sources:
 - text: 'https://supabase.com/docs/guides/getting-started (content_hash:b4c5d6e7)'
   tier: VENDOR

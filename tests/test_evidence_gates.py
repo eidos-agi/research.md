@@ -4,6 +4,7 @@ import pytest
 from research_md.gates import (
     gate_confirmed_triangulation,
     gate_confirmed_disconfirmation,
+    gate_reasoned_has_source,
     gate_vendor_only_advisory,
     run_evidence_gates,
 )
@@ -15,7 +16,7 @@ from research_md.gates import (
 class TestTriangulationGate:
     def test_high_with_two_sources_passes(self):
         fm = {
-            "evidence": "HIGH",
+            "evidence": "CONFIRMED",
             "sources": [
                 {"text": "source1 (content_hash:abc12345)", "tier": "PRIMARY"},
                 {"text": "source2 (content_hash:def67890)", "tier": "EXPERT"},
@@ -25,7 +26,7 @@ class TestTriangulationGate:
 
     def test_high_with_one_source_fails(self):
         fm = {
-            "evidence": "HIGH",
+            "evidence": "CONFIRMED",
             "sources": [{"text": "source1 (content_hash:abc12345)", "tier": "PRIMARY"}],
         }
         result = gate_confirmed_triangulation(fm)
@@ -33,22 +34,22 @@ class TestTriangulationGate:
         assert "2+ independent sources" in result["error"]
 
     def test_high_with_zero_sources_fails(self):
-        fm = {"evidence": "HIGH", "sources": []}
+        fm = {"evidence": "CONFIRMED", "sources": []}
         result = gate_confirmed_triangulation(fm)
         assert result["passed"] is False
 
     def test_high_with_legacy_numeric_one_fails(self):
-        fm = {"evidence": "HIGH", "sources": 1}
+        fm = {"evidence": "CONFIRMED", "sources": 1}
         result = gate_confirmed_triangulation(fm)
         assert result["passed"] is False
 
     def test_high_with_legacy_numeric_two_passes(self):
-        fm = {"evidence": "HIGH", "sources": 2}
+        fm = {"evidence": "CONFIRMED", "sources": 2}
         result = gate_confirmed_triangulation(fm)
         assert result["passed"] is True
 
     def test_moderate_skips_gate(self):
-        fm = {"evidence": "MODERATE", "sources": []}
+        fm = {"evidence": "REASONED", "sources": []}
         assert gate_confirmed_triangulation(fm)["passed"] is True
 
     def test_low_skips_gate(self):
@@ -65,27 +66,27 @@ class TestTriangulationGate:
 
 class TestDisconfirmationGate:
     def test_high_with_disconfirmation_passes(self):
-        fm = {"evidence": "HIGH", "disconfirmation": "Searched for X, found Y."}
+        fm = {"evidence": "CONFIRMED", "disconfirmation": "Searched for X, found Y."}
         assert gate_confirmed_disconfirmation(fm)["passed"] is True
 
     def test_high_without_disconfirmation_fails(self):
-        fm = {"evidence": "HIGH", "disconfirmation": None}
+        fm = {"evidence": "CONFIRMED", "disconfirmation": None}
         result = gate_confirmed_disconfirmation(fm)
         assert result["passed"] is False
         assert "disconfirmation search" in result["error"]
 
     def test_high_with_empty_disconfirmation_fails(self):
-        fm = {"evidence": "HIGH", "disconfirmation": "   "}
+        fm = {"evidence": "CONFIRMED", "disconfirmation": "   "}
         result = gate_confirmed_disconfirmation(fm)
         assert result["passed"] is False
 
     def test_high_with_missing_disconfirmation_key_fails(self):
-        fm = {"evidence": "HIGH"}
+        fm = {"evidence": "CONFIRMED"}
         result = gate_confirmed_disconfirmation(fm)
         assert result["passed"] is False
 
     def test_moderate_skips_gate(self):
-        fm = {"evidence": "MODERATE", "disconfirmation": None}
+        fm = {"evidence": "REASONED", "disconfirmation": None}
         assert gate_confirmed_disconfirmation(fm)["passed"] is True
 
     def test_low_skips_gate(self):
@@ -145,7 +146,7 @@ class TestVendorAdvisory:
 class TestRunEvidenceGates:
     def test_high_with_everything_passes(self):
         fm = {
-            "evidence": "HIGH",
+            "evidence": "CONFIRMED",
             "sources": [
                 {"text": "s1 (content_hash:abc12345)", "tier": "PRIMARY"},
                 {"text": "s2 (content_hash:def67890)", "tier": "EXPERT"},
@@ -156,7 +157,7 @@ class TestRunEvidenceGates:
 
     def test_high_missing_sources_fails_first(self):
         fm = {
-            "evidence": "HIGH",
+            "evidence": "CONFIRMED",
             "sources": [{"text": "s1", "tier": "PRIMARY"}],
             "disconfirmation": "Searched for counter-evidence.",
         }
@@ -166,7 +167,7 @@ class TestRunEvidenceGates:
 
     def test_high_missing_disconfirmation_fails(self):
         fm = {
-            "evidence": "HIGH",
+            "evidence": "CONFIRMED",
             "sources": [
                 {"text": "s1", "tier": "PRIMARY"},
                 {"text": "s2", "tier": "EXPERT"},
@@ -177,10 +178,52 @@ class TestRunEvidenceGates:
         assert result["passed"] is False
         assert "disconfirmation" in result["error"]
 
-    def test_moderate_always_passes(self):
-        fm = {"evidence": "MODERATE", "sources": [], "disconfirmation": None}
+    def test_reasoned_with_source_passes(self):
+        fm = {"evidence": "REASONED", "sources": [{"text": "s1", "tier": "PRIMARY"}], "disconfirmation": None}
         assert run_evidence_gates(fm)["passed"] is True
+
+    def test_reasoned_without_source_fails(self):
+        fm = {"evidence": "REASONED", "sources": [], "disconfirmation": None}
+        result = run_evidence_gates(fm)
+        assert result["passed"] is False
+        assert "REASONED" in result["error"]
 
     def test_unverified_always_passes(self):
         fm = {"evidence": "UNVERIFIED"}
         assert run_evidence_gates(fm)["passed"] is True
+
+
+# ── gate_reasoned_has_source ─────────────────────────────────────────────────
+
+
+class TestReasonedGate:
+    def test_reasoned_with_source_passes(self):
+        fm = {"evidence": "REASONED", "sources": [{"text": "s1 (content_hash:abc12345)", "tier": "PRIMARY"}]}
+        assert gate_reasoned_has_source(fm)["passed"] is True
+
+    def test_reasoned_without_source_fails(self):
+        fm = {"evidence": "REASONED", "sources": []}
+        result = gate_reasoned_has_source(fm)
+        assert result["passed"] is False
+        assert "at least 1 source" in result["error"]
+
+    def test_reasoned_with_legacy_numeric_one_passes(self):
+        fm = {"evidence": "REASONED", "sources": 1}
+        assert gate_reasoned_has_source(fm)["passed"] is True
+
+    def test_reasoned_with_legacy_numeric_zero_fails(self):
+        fm = {"evidence": "REASONED", "sources": 0}
+        result = gate_reasoned_has_source(fm)
+        assert result["passed"] is False
+
+    def test_low_skips_gate(self):
+        fm = {"evidence": "LOW", "sources": []}
+        assert gate_reasoned_has_source(fm)["passed"] is True
+
+    def test_unverified_skips_gate(self):
+        fm = {"evidence": "UNVERIFIED"}
+        assert gate_reasoned_has_source(fm)["passed"] is True
+
+    def test_confirmed_skips_gate(self):
+        fm = {"evidence": "CONFIRMED", "sources": []}
+        assert gate_reasoned_has_source(fm)["passed"] is True

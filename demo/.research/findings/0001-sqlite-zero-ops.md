@@ -2,7 +2,7 @@
 id: '0001'
 title: 'SQLite requires zero operational overhead'
 status: open
-evidence: HIGH
+evidence: CONFIRMED
 sources:
 - text: 'https://sqlite.org/whentouse.html (content_hash:a3f1b2c4)'
   tier: PRIMARY

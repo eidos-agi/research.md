@@ -1,3 +1,3 @@
 """research.md — the decision forge. Evidence-graded, phase-gated, peer-reviewed decisions."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

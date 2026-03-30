@@ -13,9 +13,9 @@ The decision forge. An MCP server that enforces evidence-graded, phase-gated, pe
 
 | Gate | Trigger |
 |------|---------|
-| 2+ sources for HIGH evidence | `finding_create` / `finding_update` fail if upgrading to HIGH with < 2 sources |
-| Disconfirmation search required | `finding_create` / `finding_update` fail if upgrading to HIGH without documenting what you searched to disprove the claim |
-| Content hash for MODERATE+ | Source must include `content_hash:` proving the agent fetched and read the material |
+| 2+ sources for CONFIRMED evidence | `finding_create` / `finding_update` fail if upgrading to CONFIRMED with < 2 sources |
+| Disconfirmation search required | `finding_create` / `finding_update` fail if upgrading to CONFIRMED without documenting what you searched to disprove the claim |
+| Content hash for REASONED+ | Source must include `content_hash:` proving the agent fetched and read the material |
 | Web research nudge | Tool returns advisory when findings have no sources |
 | Vendor-only warning | Advisory when all sources are VENDOR tier |
 | Landscape scan advisory | Nudge on first candidate to document the full option landscape |
@@ -67,10 +67,10 @@ A typical research session follows this path:
 ```
 project_set          Register project, get research_id
     |
-finding_create       Record claims with evidence grades (UNVERIFIED -> LOW -> MODERATE -> HIGH)
+finding_create       Record claims with evidence grades (UNVERIFIED -> LOW -> REASONED -> CONFIRMED)
     |                Tool nudges: "Use WebSearch to find sources"
 finding_update       Add sources, disconfirmation search, upgrade evidence grade
-    |                Gate: HIGH requires 2+ sources + disconfirmation
+    |                Gate: CONFIRMED requires 2+ sources + disconfirmation
 candidate_create     Define options to evaluate
     |                Advisory: "Document the full landscape before narrowing"
 criteria_lock        Freeze decision criteria weights
@@ -88,8 +88,8 @@ project_decide       Record the decision with rationale
 |-------|---------|-------------|
 | `UNVERIFIED` | Claim recorded, not yet investigated | None -- tool nudges toward web research |
 | `LOW` | Single source or anecdotal | At least a coherent argument |
-| `MODERATE` | Credible source, verified consultation | 1+ source with `content_hash:` proof |
-| `HIGH` | Confirmed -- validated by evidence | 2+ independent sources + disconfirmation search |
+| `REASONED` | Credible source, verified consultation | 1+ source with `content_hash:` proof |
+| `CONFIRMED` | Confirmed -- validated by evidence | 2+ independent sources + disconfirmation search |
 
 ### Source quality tiers
 
@@ -177,7 +177,7 @@ When you `project_set` a root, all subprojects are registered automatically.
 |------|-------------|
 | `finding_create` | Create finding with evidence grade, sources array, and disconfirmation. Nudges toward web research. |
 | `finding_list` | List all findings with status and evidence grade. |
-| `finding_update` | Update status, evidence grade, sources, disconfirmation, or claim. Gates HIGH evidence. |
+| `finding_update` | Update status, evidence grade, sources, disconfirmation, or claim. Gates CONFIRMED evidence. |
 
 ### Candidates
 

@@ -4,7 +4,7 @@ import pytest
 
 from research_md.config import init_project, register_project, _guid_to_path
 from research_md.server import finding_create, finding_update, candidate_create
-from research_md.errors import ResearchGateError
+from research_md.errors import ResearchGateError, ResearchValidationError
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ class TestFindingCreate:
         pid, _ = project
         result = finding_create(
             pid, "Test claim", "Something is true",
-            evidence="MODERATE",
+            evidence="REASONED",
             source="https://example.com (content_hash:abcd1234)",
         )
         assert "Finding created" in result
@@ -49,7 +49,7 @@ class TestFindingCreate:
         with pytest.raises(ResearchGateError, match="2\\+ independent sources"):
             finding_create(
                 pid, "Test claim", "Something is true",
-                evidence="HIGH",
+                evidence="CONFIRMED",
                 sources=[{"text": "https://a.com (content_hash:abcd1234)", "tier": "PRIMARY"}],
                 disconfirmation="Looked for counter-evidence.",
             )
@@ -59,7 +59,7 @@ class TestFindingCreate:
         with pytest.raises(ResearchGateError, match="disconfirmation"):
             finding_create(
                 pid, "Test claim", "Something is true",
-                evidence="HIGH",
+                evidence="CONFIRMED",
                 sources=[
                     {"text": "https://a.com (content_hash:abcd1234)", "tier": "PRIMARY"},
                     {"text": "https://b.com (content_hash:efgh5678)", "tier": "EXPERT"},
@@ -70,7 +70,7 @@ class TestFindingCreate:
         pid, _ = project
         result = finding_create(
             pid, "Validated claim", "Something is confirmed",
-            evidence="HIGH",
+            evidence="CONFIRMED",
             sources=[
                 {"text": "https://a.com (content_hash:abcd1234)", "tier": "PRIMARY"},
                 {"text": "https://b.com (content_hash:efgh5678)", "tier": "EXPERT"},
@@ -78,7 +78,28 @@ class TestFindingCreate:
             disconfirmation="Searched 'why X fails' — found nothing contradicting the claim.",
         )
         assert "Finding created" in result
-        assert "HIGH" in result
+        assert "CONFIRMED" in result
+
+    def test_reasoned_without_source_blocked(self, project):
+        pid, _ = project
+        # REASONED with no source hits content_hash validation first (Layer 1),
+        # then the REASONED gate (Layer 2). Either way, it's blocked.
+        with pytest.raises((ResearchGateError, ResearchValidationError)):
+            finding_create(
+                pid, "No source claim", "Something is true",
+                evidence="REASONED",
+                source="unspecified",
+            )
+
+    def test_reasoned_with_source_succeeds(self, project):
+        pid, _ = project
+        result = finding_create(
+            pid, "Sourced claim", "Something is true",
+            evidence="REASONED",
+            sources=[{"text": "https://example.com (content_hash:abcd1234)", "tier": "PRIMARY"}],
+        )
+        assert "Finding created" in result
+        assert "REASONED" in result
 
     def test_vendor_only_sources_advisory(self, project):
         pid, _ = project
@@ -100,14 +121,14 @@ class TestFindingUpdate:
         pid, _ = project
         finding_create(pid, "Initial claim", "Something", evidence="LOW")
         with pytest.raises(ResearchGateError, match="2\\+ independent sources"):
-            finding_update(pid, "1", evidence="HIGH")
+            finding_update(pid, "1", evidence="CONFIRMED")
 
     def test_upgrade_to_high_with_sources_and_disconfirmation(self, project):
         pid, _ = project
         finding_create(pid, "Initial claim", "Something", evidence="LOW")
         result = finding_update(
             pid, "1",
-            evidence="HIGH",
+            evidence="CONFIRMED",
             sources=[
                 {"text": "https://a.com (content_hash:abcd1234)", "tier": "PRIMARY"},
                 {"text": "https://b.com (content_hash:efgh5678)", "tier": "EXPERT"},
@@ -121,6 +142,12 @@ class TestFindingUpdate:
         finding_create(pid, "Initial claim", "Something")
         result = finding_update(pid, "1", evidence="LOW")
         assert "WebSearch" in result
+
+    def test_upgrade_to_reasoned_without_source_blocked(self, project):
+        pid, _ = project
+        finding_create(pid, "Initial claim", "Something")
+        with pytest.raises(ResearchGateError, match="at least 1 source"):
+            finding_update(pid, "1", evidence="REASONED")
 
     def test_add_disconfirmation_to_existing(self, project):
         pid, _ = project

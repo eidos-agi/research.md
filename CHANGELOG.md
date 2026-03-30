@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-29
+
+### Changed
+- **BREAKING:** Evidence grades renamed for clarity: `HIGH` → `CONFIRMED`, `MODERATE` → `REASONED`. `LOW` and `UNVERIFIED` unchanged. Existing findings with old grade names will need manual update.
+- `REASONED` is now a hard gate — requires at least 1 source. Previously `MODERATE` was advisory-only for source count.
+
+### Added
+- `gate_reasoned_has_source` — blocks upgrade to REASONED without at least 1 source with content_hash proof. This closes the gap where agents could stay at reasoning-only evidence indefinitely.
+- YAML serializer tests (13 tests) covering quoting edge cases and list indentation round-trips.
+- 10 new tests for REASONED gate (unit + integration). Total: 62 tests.
+
 ## [0.3.0] - 2026-03-29
 
 ### Added

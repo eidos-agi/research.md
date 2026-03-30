@@ -74,7 +74,7 @@ def _format_finding_status(f) -> str:
     """Format a single finding for status display, with evidence gate warnings."""
     fm = f.frontmatter
     base = f"  {fm['id']} [{fm['status']}] [{fm['evidence']}] {fm['title']}"
-    if fm.get("evidence") == "HIGH":
+    if fm.get("evidence") == "CONFIRMED":
         from .gates import run_evidence_gates
         gate = run_evidence_gates(fm)
         if not gate["passed"]:
@@ -212,20 +212,20 @@ def finding_create(
     Before creating a finding, search the web for evidence. Use WebSearch/WebFetch to find
     primary sources, then include them in the sources array with content hashes.
 
-    Evidence grade ladder:
+    Evidence grade ladder (each level is gated):
       UNVERIFIED — claim recorded, not yet investigated. Go do web research.
       LOW — single source or anecdotal. Search for more sources to strengthen.
-      MODERATE — credible source with content_hash proof. Search for disconfirming evidence.
-      HIGH — 2+ independent sources + documented disconfirmation search. This is confirmed.
+      REASONED — credible source with content_hash proof. Requires 1+ source. Search for disconfirming evidence.
+      CONFIRMED — 2+ independent sources + documented disconfirmation search. Fully validated.
 
     Args:
         research_id: Project GUID from .research/research.json 'id' field.
         title: Short title for the finding.
         claim: The factual claim this finding asserts.
-        evidence: Evidence grade — HIGH (confirmed, 2+ sources + disconfirmation), MODERATE (credible, 1+ source with hash), LOW (single source), UNVERIFIED (not yet investigated).
+        evidence: Evidence grade — CONFIRMED (2+ sources + disconfirmation), REASONED (1+ source with hash), LOW (single source), UNVERIFIED (not yet investigated).
         source: Legacy single-source string. Prefer 'sources' array for new findings.
-        sources: Array of source objects: [{"text": "url or description (content_hash:abcd1234)", "tier": "PRIMARY|EXPERT|SECONDARY|VENDOR"}]. Required for HIGH evidence.
-        disconfirmation: What you searched for to disprove this claim and what you found. Required for HIGH evidence.
+        sources: Array of source objects: [{"text": "url or description (content_hash:abcd1234)", "tier": "PRIMARY|EXPERT|SECONDARY|VENDOR"}]. Required for CONFIRMED evidence.
+        disconfirmation: What you searched for to disprove this claim and what you found. Required for CONFIRMED evidence.
     """
     resolved = _get_project(research_id)
     root = resolved.projectRoot
@@ -235,9 +235,9 @@ def finding_create(
     if not source_entries and source != "unspecified":
         source_entries = [{"text": source, "tier": "SECONDARY"}]
 
-    # Layer 1: Evidence integrity — HIGH/MODERATE require proof of source consultation
+    # Layer 1: Evidence integrity — CONFIRMED/REASONED require proof of source consultation
     all_source_texts = " ".join(s.get("text", "") for s in source_entries) if source_entries else source
-    if evidence in ("HIGH", "MODERATE") and "content_hash:" not in all_source_texts:
+    if evidence in ("CONFIRMED", "REASONED") and "content_hash:" not in all_source_texts:
         raise ResearchValidationError(
             f'Evidence grade "{evidence}" requires proof of source consultation. '
             'Include a content_hash in your source field to prove you fetched and read the source material. '
@@ -246,7 +246,7 @@ def finding_create(
             'If your evidence is based on reasoning rather than a fetched source, use evidence: "LOW" or "UNVERIFIED" instead.'
         )
 
-    # Layer 2: Evidence gates — HIGH requires triangulation + disconfirmation
+    # Layer 2: Evidence gates — CONFIRMED requires triangulation + disconfirmation
     frontmatter_preview = {
         "evidence": evidence,
         "sources": source_entries,
@@ -330,17 +330,17 @@ def finding_update(
 ) -> str:
     """Update a finding's status, evidence grade, claim, sources, or disconfirmation.
 
-    Evidence grade ladder (each level has enforced requirements):
-      UNVERIFIED → LOW → MODERATE (needs content_hash) → HIGH (needs 2+ sources + disconfirmation)
+    Evidence grade ladder (each level is gated):
+      UNVERIFIED → LOW → REASONED (needs 1+ source with content_hash) → CONFIRMED (needs 2+ sources + disconfirmation)
 
-    To upgrade a finding to HIGH: add 2+ sources with content hashes, then add a
+    To upgrade a finding to CONFIRMED: add 2+ sources with content hashes, then add a
     disconfirmation search documenting what you looked for to disprove the claim.
 
     Args:
         research_id: Project GUID.
         id: Finding ID (e.g. "0001" or "1").
         status: New status (open, confirmed, refuted, superseded).
-        evidence: New evidence grade (HIGH, MODERATE, LOW, UNVERIFIED). HIGH requires 2+ sources and a disconfirmation search.
+        evidence: New evidence grade (CONFIRMED, REASONED, LOW, UNVERIFIED). CONFIRMED requires 2+ sources and a disconfirmation search. REASONED requires 1+ source.
         claim: Updated claim text.
         sources: Replace sources array: [{"text": "url (content_hash:abc12345)", "tier": "PRIMARY|EXPERT|SECONDARY|VENDOR"}].
         disconfirmation: What you searched for to disprove this claim and what you found.
@@ -362,9 +362,9 @@ def finding_update(
     if disconfirmation is not None:
         updated["disconfirmation"] = disconfirmation
 
-    # Evidence gates — enforce when upgrading to HIGH
+    # Evidence gates — enforce when upgrading to CONFIRMED or REASONED
     target_evidence = updated.get("evidence", "UNVERIFIED")
-    if target_evidence == "HIGH":
+    if target_evidence in ("CONFIRMED", "REASONED"):
         gate_result = run_evidence_gates(updated)
         if not gate_result["passed"]:
             raise ResearchGateError(gate_result["error"])
@@ -657,7 +657,7 @@ def peer_review_log(research_id: str, reviewer: str, findings: list[str], attest
     atts = attestations or {}
 
     all_findings = list_findings(root)
-    high_findings = [f for f in all_findings if f.frontmatter["evidence"] in ("HIGH", "MODERATE")]
+    high_findings = [f for f in all_findings if f.frontmatter["evidence"] in ("CONFIRMED", "REASONED")]
     unattested = [f for f in high_findings if f.frontmatter["id"] not in atts]
 
     finding_lines = []
@@ -674,7 +674,7 @@ def peer_review_log(research_id: str, reviewer: str, findings: list[str], attest
     if unattested:
         attestation_lines.extend([
             "",
-            f"> ⚠️ {len(unattested)} HIGH/MODERATE finding(s) without attestation: {', '.join(f.frontmatter['id'] for f in unattested)}",
+            f"> ⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) without attestation: {', '.join(f.frontmatter['id'] for f in unattested)}",
             "> These will be treated as SKIPPED at scoring time — evidence grade may be downgraded.",
         ])
 
@@ -691,7 +691,7 @@ def peer_review_log(research_id: str, reviewer: str, findings: list[str], attest
 
     advance_phase(root, "reviewed", f"Peer review by {reviewer}")
 
-    warnings = f"\n⚠️ {len(unattested)} HIGH/MODERATE finding(s) lack attestation — will be downgraded at scoring." if unattested else ""
+    warnings = f"\n⚠️ {len(unattested)} CONFIRMED/REASONED finding(s) lack attestation — will be downgraded at scoring." if unattested else ""
     return f"Peer review logged by {reviewer} on {_today()}. Scoring is now unblocked. Phase → reviewed{warnings}"
 
 
@@ -778,8 +778,8 @@ def research_brief(research_id: str, audience: str = "general") -> str:
     matrix_p = scoring_matrix_path(root)
     matrix_content = open(matrix_p).read() if os.path.exists(matrix_p) else ""
 
-    high_findings = [f for f in findings_list if f.frontmatter["evidence"] == "HIGH"]
-    mod_findings = [f for f in findings_list if f.frontmatter["evidence"] == "MODERATE"]
+    high_findings = [f for f in findings_list if f.frontmatter["evidence"] == "CONFIRMED"]
+    mod_findings = [f for f in findings_list if f.frontmatter["evidence"] == "REASONED"]
 
     candidate_scores = []
     for c in candidates_list:
@@ -801,16 +801,16 @@ def research_brief(research_id: str, audience: str = "general") -> str:
                     brief.extend([f"**Verdict:** {line}", ""])
                     break
 
-    brief.extend([f"**Evidence:** {len(findings_list)} findings ({len(high_findings)} HIGH, {len(mod_findings)} MODERATE) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}", ""])
+    brief.extend([f"**Evidence:** {len(findings_list)} findings ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}", ""])
 
     brief.extend(["---", "", "## Key Findings", ""])
     for f in high_findings[:8]:
         claim_first = extract_section(f.content, "Claim").split("\n")[0] if extract_section(f.content, "Claim") else ""
         brief.append(f"- **{f.frontmatter['title']}** — {claim_first}")
     if len(high_findings) > 8:
-        brief.append(f"- *...and {len(high_findings) - 8} more HIGH-evidence findings*")
+        brief.append(f"- *...and {len(high_findings) - 8} more CONFIRMED-evidence findings*")
     if mod_findings:
-        brief.append(f"- *Plus {len(mod_findings)} MODERATE-evidence findings (see full report)*")
+        brief.append(f"- *Plus {len(mod_findings)} REASONED-evidence findings (see full report)*")
     brief.append("")
 
     if candidate_scores:
@@ -834,7 +834,7 @@ def research_brief(research_id: str, audience: str = "general") -> str:
         f"- **Project:** {pc['projectName']}",
         f"- **Phase:** {pc['phase']}",
         f"- **Created:** {pc['created']}",
-        f"- **Findings:** {len(findings_list)} ({len(high_findings)} HIGH, {len(mod_findings)} MODERATE)",
+        f"- **Findings:** {len(findings_list)} ({len(high_findings)} CONFIRMED, {len(mod_findings)} REASONED)",
         f"- **Candidates:** {len(candidates_list)} evaluated",
         f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
         f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",
@@ -875,8 +875,8 @@ def research_report(research_id: str) -> str:
     matrix_p = scoring_matrix_path(root)
     matrix_content = open(matrix_p).read() if os.path.exists(matrix_p) else ""
 
-    high = [f for f in findings_list if f.frontmatter["evidence"] == "HIGH"]
-    mod = [f for f in findings_list if f.frontmatter["evidence"] == "MODERATE"]
+    high = [f for f in findings_list if f.frontmatter["evidence"] == "CONFIRMED"]
+    mod = [f for f in findings_list if f.frontmatter["evidence"] == "REASONED"]
     low = [f for f in findings_list if f.frontmatter["evidence"] == "LOW"]
     unverified = [f for f in findings_list if f.frontmatter["evidence"] == "UNVERIFIED"]
 
@@ -895,13 +895,13 @@ def research_report(research_id: str) -> str:
     sections.append("Title + Question + Verdict")
 
     report.extend([
-        f"**Evidence:** {len(findings_list)} findings ({len(high)} HIGH, {len(mod)} MODERATE, {len(low)} LOW, {len(unverified)} UNVERIFIED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}",
+        f"**Evidence:** {len(findings_list)} findings ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED) | {len(candidates_list)} candidates scored | Peer reviewed: {'Yes' if has_peer_review else 'No'}",
         "",
     ])
     sections.append("Evidence Summary")
 
     report.extend(["---", "", "## All Findings", ""])
-    for label, group in [("HIGH", high), ("MODERATE", mod), ("LOW", low), ("UNVERIFIED", unverified)]:
+    for label, group in [("CONFIRMED", high), ("REASONED", mod), ("LOW", low), ("UNVERIFIED", unverified)]:
         if not group:
             continue
         report.extend([f"### {label} Evidence ({len(group)})", ""])
@@ -952,7 +952,7 @@ def research_report(research_id: str) -> str:
         f"- **Project:** {pc['projectName']}",
         f"- **Phase:** {pc['phase']}",
         f"- **Created:** {pc['created']}",
-        f"- **Findings:** {len(findings_list)} ({len(high)} HIGH, {len(mod)} MODERATE, {len(low)} LOW, {len(unverified)} UNVERIFIED)",
+        f"- **Findings:** {len(findings_list)} ({len(high)} CONFIRMED, {len(mod)} REASONED, {len(low)} LOW, {len(unverified)} UNVERIFIED)",
         f"- **Candidates:** {len(candidates_list)} evaluated",
         f"- **Criteria:** {'Locked' if criteria else 'Not defined'}",
         f"- **Peer review:** {'Logged' if has_peer_review else 'Not logged'}",

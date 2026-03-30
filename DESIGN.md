@@ -21,17 +21,17 @@ Research findings have an evidence grade that determines how much weight they ca
 |-------|---------|-------------|
 | `UNVERIFIED` | Claim recorded, not yet investigated | None — but the tool nudges toward web research |
 | `LOW` | Single source or anecdotal | At least a coherent argument; tool nudges toward more sources |
-| `MODERATE` | Credible source, verified consultation | 1+ source with `content_hash:` proof of retrieval |
-| `HIGH` | Confirmed — validated by evidence | 2+ independent sources + documented disconfirmation search |
+| `REASONED` | Credible source, verified consultation | 1+ source with `content_hash:` proof of retrieval |
+| `CONFIRMED` | Confirmed — validated by evidence | 2+ independent sources + documented disconfirmation search |
 
-The `HIGH` grade is gated by two hard checks:
+The `CONFIRMED` grade is gated by two hard checks:
 
 | Gate | Tool | Prerequisite |
 |------|------|-------------|
 | Source triangulation | `finding_create`, `finding_update` | `sources` array must have 2+ entries |
 | Disconfirmation search | `finding_create`, `finding_update` | `disconfirmation` field must be non-empty |
 
-An agent cannot mark a finding as `HIGH` from a single blog post. It cannot skip the red-team step of searching for evidence against its own claim. These are the two most common evidence failures in AI-assisted research.
+An agent cannot mark a finding as `CONFIRMED` from a single blog post. It cannot skip the red-team step of searching for evidence against its own claim. These are the two most common evidence failures in AI-assisted research.
 
 Sources carry a quality tier (`PRIMARY`, `EXPERT`, `SECONDARY`, `VENDOR`) as metadata. No hard gate on tier — source classification requires judgment — but the tool warns when all sources are vendor-produced.
 
