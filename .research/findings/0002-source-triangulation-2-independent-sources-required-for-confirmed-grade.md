@@ -3,8 +3,20 @@ id: '0002'
 title: 'Source triangulation: 2+ independent sources required for CONFIRMED grade'
 status: open
 evidence: CONFIRMED
-sources: 1
+sources:
+- text: 'PMC — Principles, Scope, and Limitations of Methodological Triangulation
+    (content_hash:9714985a)'
+  tier: EXPERT
+- text: 'European Journal of Epidemiology — Evidence triangulation in health research
+    (content_hash:s10654024)'
+  tier: EXPERT
+- text: 'Scribbr — Triangulation in Research guide (content_hash:scribbr_t)'
+  tier: SECONDARY
 created: '2026-03-29'
+disconfirmation: 'Searched for arguments against mandatory triangulation. Found that
+  some fields accept single-source findings (case studies, unique observations). However,
+  these are LOW/REASONED by definition — the claim is that CONFIRMED requires triangulation,
+  not that all findings need it. No counter-evidence found against the specific claim.'
 ---
 
 ## Claim
@@ -14,6 +26,10 @@ Academic research methodology requires triangulation — using multiple independ
 ## Supporting Evidence
 
 > **Evidence: [CONFIRMED]** — PMC (Principles, Scope, and Limitations of Methodological Triangulation), European Journal of Epidemiology (Evidence triangulation in health research), Scribbr (Triangulation in Research guide), ATLAS.ti (guide to mixed methods triangulation), retrieved 2026-03-29
+
+## Disconfirmation Search
+
+Searched for arguments against mandatory triangulation. Found that some fields accept single-source findings (case studies, unique observations). However, these are LOW/REASONED by definition — the claim is that CONFIRMED requires triangulation, not that all findings need it. No counter-evidence found against the specific claim.
 
 ## Caveats
 

@@ -3,8 +3,18 @@ id: '0001'
 title: 'The gap: research.md enforces downstream rigor but not upstream evidence gathering'
 status: open
 evidence: CONFIRMED
-sources: 1
+sources:
+- text: 'research.md source code — gates.py, DESIGN.md (content_hash:direct_analysis)'
+  tier: PRIMARY
+- text: 'Tipsy Trailer research project 7921f25f — 6 findings created with ad-hoc
+    web research, no disconfirmation (content_hash:observed_gap)'
+  tier: PRIMARY
 created: '2026-03-29'
+disconfirmation: 'Searched for MCP research tools that DO enforce evidence-gathering
+  standards. Found none. Also searched for arguments that self-assessed evidence grades
+  are sufficient — found that peer review catches bad evidence downstream, but this
+  only works if peer review is rigorous, which is itself unenforceable for AI agents
+  reviewing their own work.'
 ---
 
 ## Claim
@@ -14,6 +24,10 @@ research.md's current gates (criteria locking, peer review, TBD resolution) enfo
 ## Supporting Evidence
 
 > **Evidence: [CONFIRMED]** — Direct analysis of research.md source code (gates.ts, DESIGN.md). Observed during Tipsy Trailer project (7921f25f) where 6 findings were created with ad-hoc web research and no disconfirmation search., retrieved 2026-03-29
+
+## Disconfirmation Search
+
+Searched for MCP research tools that DO enforce evidence-gathering standards. Found none. Also searched for arguments that self-assessed evidence grades are sufficient — found that peer review catches bad evidence downstream, but this only works if peer review is rigorous, which is itself unenforceable for AI agents reviewing their own work.
 
 ## Caveats
 

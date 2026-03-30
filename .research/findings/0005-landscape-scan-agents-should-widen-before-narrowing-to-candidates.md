@@ -3,7 +3,9 @@ id: '0005'
 title: 'Landscape scan: agents should widen before narrowing to candidates'
 status: open
 evidence: REASONED
-sources: 1
+sources:
+- text: 'CIA Tradecraft Primer — premature narrowing as analytical failure mode (content_hash:cia_apr09)'
+  tier: PRIMARY
 created: '2026-03-29'
 ---
 
