@@ -15,6 +15,7 @@ app = typer.Typer(
     help="research.md — the decision forge. Evidence-graded, phase-gated, peer-reviewed decisions.",
     no_args_is_help=True,
     add_completion=False,
+    pretty_exceptions_enable=False,
 )
 
 
@@ -60,4 +61,14 @@ _wire()
 
 def main() -> None:
     """Console-script entry point (`research-md`)."""
-    app()
+    import sys
+
+    try:
+        app()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (typer.Exit, typer.Abort, SystemExit):
+        raise
+    except Exception as e:
+        typer.echo(f"error: {type(e).__name__}: {e}", err=True)
+        sys.exit(1)

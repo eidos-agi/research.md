@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from .errors import ResearchValidationError
+
 PHASE_ORDER = [
     "research",
     "criteria",
@@ -202,6 +204,14 @@ def init_project(
     context: str | None = None,
 ) -> None:
     research_dir = os.path.join(target_dir, CONFIG_DIR)
+    config_path = os.path.join(research_dir, "research.json")
+    if os.path.exists(config_path):
+        raise ResearchValidationError(
+            f"A research.md project already exists at {target_dir} "
+            f"(found {config_path}). Refusing to overwrite — would clobber the "
+            "existing GUID and phase history. Delete .research/ first if you "
+            "really want a fresh project."
+        )
     for d in ["findings", "candidates", "evaluations"]:
         os.makedirs(os.path.join(research_dir, d), exist_ok=True)
 
