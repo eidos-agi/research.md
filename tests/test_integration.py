@@ -1,9 +1,10 @@
-"""Integration tests — exercise finding_create/finding_update/candidate_create through the server functions."""
+"""Integration tests — exercise finding_create/finding_update/candidate_create through the _logic layer."""
 
 import pytest
 
 from research_md.config import init_project, register_project, _guid_to_path
-from research_md.server import finding_create, finding_update, candidate_create
+from research_md._logic.candidate import candidate_create
+from research_md._logic.finding import finding_create, finding_update
 from research_md.errors import ResearchGateError, ResearchValidationError
 
 

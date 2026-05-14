@@ -1,6 +1,6 @@
 [project]
 name = "research-md"
-version = "0.4.1"
+version = "0.5.0"
 description = "The decision forge — evidence-graded, phase-gated, peer-reviewed decisions"
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0",
     "pyyaml>=6.0",
+    "typer>=0.12.0",
 ]
 
 [project.optional-dependencies]
@@ -28,10 +29,11 @@ dev = [
 ]
 
 [project.scripts]
-research-md = "research_md.server:main"
+research-md = "research_md.cli:main"
+research-md-migrate = "research_md.migrate:main"
 
 [project.entry-points."mcp"]
-research-md = "research_md.server:mcp"
+research-md = "research_md.mcp_server:server"
 
 [project.urls]
 Homepage = "https://github.com/eidos-agi/research.md"
