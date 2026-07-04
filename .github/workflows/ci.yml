@@ -36,8 +36,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: pip install -e ".[dev]"
-      - name: Run fixture verification
-        run: python refactor/verify-fixtures.py || true
+      - name: Run fixture verification (TS-parity diagnostic; gates on harness executability)
+        run: python refactor/verify-fixtures.py
       - name: Run tests
         run: pytest tests/ -v
       - name: Audit dependencies
