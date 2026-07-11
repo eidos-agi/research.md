@@ -1,0 +1,44 @@
+asmp: "0.1"
+kind: service
+name: research-md
+description: >
+  The decision forge — evidence-graded, phase-gated, peer-reviewed research
+  so agents cannot skip rigor under time pressure. First leg of the Trilogy
+  (research → governor → docket).
+version: 0.5.1
+created_by: agent://grok/software-engineer
+owner: eidos-agi
+section: tools
+
+aliases:
+  - research
+  - research.md
+
+runtime:
+  style: mcp
+  exec: research-md
+  mcp: research-md
+
+capabilities:
+  provides:
+    - decision.research
+    - evidence.grading
+    - research.phase-gate
+    - trilogy.decide
+  requires: []
+  supports:
+    - governor-md
+    - docket-md
+    - telos-md
+
+infra:
+  repo: ~/repos-eidos-agi/research.md
+  github: https://github.com/eidos-agi/research.md
+  pypi: research-md
+  install:
+    - pip install research-md
+
+display:
+  icon: magnifier
+  label: research.md
+  section: tools
